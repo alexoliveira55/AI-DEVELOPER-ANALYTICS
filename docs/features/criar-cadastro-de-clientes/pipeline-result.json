@@ -1,0 +1,81 @@
+{
+  "success": true,
+  "sessionId": "8d40729a-4f91-449a-89c4-9fe4b6d2c831",
+  "featureName": "criar cadastro de clientes",
+  "executionMode": "repository-only",
+  "steps": [
+    {
+      "stepName": "Step 1/10",
+      "agent": "Repository Indexer",
+      "success": true,
+      "skipped": false,
+      "durationMs": 1388
+    },
+    {
+      "stepName": "Step 2/10",
+      "agent": "Database Reader",
+      "success": true,
+      "skipped": true,
+      "durationMs": 0
+    },
+    {
+      "stepName": "Step 3/10",
+      "agent": "Requirements Analyst",
+      "success": true,
+      "skipped": true,
+      "durationMs": 0
+    },
+    {
+      "stepName": "Step 4/10",
+      "agent": "Scope Analyst",
+      "success": true,
+      "skipped": true,
+      "durationMs": 0
+    },
+    {
+      "stepName": "Step 5/10",
+      "agent": "Reuse Analyst",
+      "success": true,
+      "skipped": false,
+      "durationMs": 1
+    },
+    {
+      "stepName": "Step 6/10",
+      "agent": "Solution Architect",
+      "success": true,
+      "skipped": true,
+      "durationMs": 0
+    },
+    {
+      "stepName": "Step 7/10",
+      "agent": "Impact Analyst",
+      "success": true,
+      "skipped": false,
+      "durationMs": 3
+    },
+    {
+      "stepName": "Step 8/10",
+      "agent": "Estimation Agent",
+      "success": true,
+      "skipped": false,
+      "durationMs": 0
+    },
+    {
+      "stepName": "Step 9/10",
+      "agent": "Documentation Generator",
+      "success": true,
+      "skipped": false,
+      "durationMs": 73
+    },
+    {
+      "stepName": "Step 10/10",
+      "agent": "Prototype Generator",
+      "success": true,
+      "skipped": true,
+      "durationMs": 0
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "durationMs": 1469
+}

@@ -1,0 +1,54 @@
+{
+  "name": "ai-developer-analytics",
+  "version": "2.0.0",
+  "description": "AI multi-agent software architect system",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ai-cli": "dist/index.js",
+    "ai-mcp": "dist/mcp-server.js"
+  },
+  "files": [
+    "dist",
+    "prompts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "mcp": "node dist/mcp-server.js",
+    "generate": "node dist/index.js generate",
+    "dev": "ts-node src/index.ts",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rimraf dist",
+    "package:win": "pkg dist/mcp-server.js --targets node20-win-x64 --output ai-mcp.exe",
+    "dist": "npm run build && npm run package:win",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "pkg": {
+    "assets": [
+      "prompts/**/*"
+    ],
+    "outputPath": "."
+  },
+  "keywords": [
+    "ai",
+    "multi-agent",
+    "software-architecture",
+    "analytics"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@yao-pkg/pkg": "^6.14.2",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "yaml": "^2.3.4"
+  }
+}

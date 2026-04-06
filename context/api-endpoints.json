@@ -1,0 +1,72 @@
+[
+  {
+    "method": "GET",
+    "route": "/",
+    "handler": "findAll",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 155
+  },
+  {
+    "method": "GET",
+    "route": "/",
+    "handler": "push",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 339
+  },
+  {
+    "method": "GET",
+    "route": ":id",
+    "handler": "push",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 344
+  },
+  {
+    "method": "POST",
+    "route": "/",
+    "handler": "push",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 349
+  },
+  {
+    "method": "PUT",
+    "route": ":id",
+    "handler": "push",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 354
+  },
+  {
+    "method": "DELETE",
+    "route": ":id",
+    "handler": "push",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 359
+  },
+  {
+    "method": "GET",
+    "route": "/${routeName}",
+    "handler": "inline-handler",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 482
+  },
+  {
+    "method": "GET",
+    "route": "/${routeName}/:id",
+    "handler": "inline-handler",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 487
+  },
+  {
+    "method": "POST",
+    "route": "/${routeName}",
+    "handler": "inline-handler",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "line": 492
+  },
+  {
+    "method": "GET",
+    "route": "/path",
+    "handler": "handler",
+    "filePath": "src/indexer/scanners/api-endpoint-scanner.ts",
+    "line": 40
+  }
+]

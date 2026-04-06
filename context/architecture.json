@@ -1,0 +1,9 @@
+{
+  "primary": "Event-Driven",
+  "patterns": [
+    "Event-Driven"
+  ],
+  "evidence": [
+    "EventEmitter or event bus patterns found in code"
+  ]
+}

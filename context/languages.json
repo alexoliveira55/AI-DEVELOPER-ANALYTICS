@@ -1,0 +1,20 @@
+[
+  {
+    "language": "TypeScript",
+    "files": 44,
+    "lines": 6409,
+    "percentage": 70.56
+  },
+  {
+    "language": "JSON",
+    "files": 19,
+    "lines": 2562,
+    "percentage": 28.21
+  },
+  {
+    "language": "Markdown",
+    "files": 9,
+    "lines": 112,
+    "percentage": 1.23
+  }
+]

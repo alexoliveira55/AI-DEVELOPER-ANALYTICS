@@ -1,0 +1,321 @@
+[
+  {
+    "name": "database-reader.agent",
+    "filePath": "src/agents/database-reader.agent.ts",
+    "type": "class",
+    "exports": [
+      "DatabaseReaderAgent"
+    ]
+  },
+  {
+    "name": "documentation-generator.agent",
+    "filePath": "src/agents/documentation-generator.agent.ts",
+    "type": "class",
+    "exports": [
+      "DocumentationGeneratorAgent"
+    ]
+  },
+  {
+    "name": "estimation.agent",
+    "filePath": "src/agents/estimation.agent.ts",
+    "type": "class",
+    "exports": [
+      "EstimationAgent"
+    ]
+  },
+  {
+    "name": "impact-analysis.agent",
+    "filePath": "src/agents/impact-analysis.agent.ts",
+    "type": "class",
+    "exports": [
+      "ImpactAnalysisAgent"
+    ]
+  },
+  {
+    "name": "prototype-generator.agent",
+    "filePath": "src/agents/prototype-generator.agent.ts",
+    "type": "class",
+    "exports": [
+      "PrototypeGeneratorAgent"
+    ]
+  },
+  {
+    "name": "repository-indexer.agent",
+    "filePath": "src/agents/repository-indexer.agent.ts",
+    "type": "class",
+    "exports": [
+      "RepositoryIndexerAgent"
+    ]
+  },
+  {
+    "name": "requirements.agent",
+    "filePath": "src/agents/requirements.agent.ts",
+    "type": "class",
+    "exports": [
+      "RequirementsAgent"
+    ]
+  },
+  {
+    "name": "reuse.agent",
+    "filePath": "src/agents/reuse.agent.ts",
+    "type": "class",
+    "exports": [
+      "ReuseAgent"
+    ]
+  },
+  {
+    "name": "scope.agent",
+    "filePath": "src/agents/scope.agent.ts",
+    "type": "class",
+    "exports": [
+      "ScopeAgent"
+    ]
+  },
+  {
+    "name": "solution-architect.agent",
+    "filePath": "src/agents/solution-architect.agent.ts",
+    "type": "class",
+    "exports": [
+      "SolutionArchitectAgent"
+    ]
+  },
+  {
+    "name": "config-loader",
+    "filePath": "src/config/config-loader.ts",
+    "type": "module",
+    "exports": [
+      "loadConfig"
+    ]
+  },
+  {
+    "name": "agent.interface",
+    "filePath": "src/core/agent.interface.ts",
+    "type": "module",
+    "exports": [
+      "IAgent"
+    ]
+  },
+  {
+    "name": "logger",
+    "filePath": "src/core/logger.ts",
+    "type": "class",
+    "exports": [
+      "Logger"
+    ]
+  },
+  {
+    "name": "mode-manager",
+    "filePath": "src/core/mode-manager.ts",
+    "type": "class",
+    "exports": [
+      "ModeManager"
+    ]
+  },
+  {
+    "name": "database-reader",
+    "filePath": "src/database/database-reader.ts",
+    "type": "class",
+    "exports": [
+      "DatabaseReaderOptions",
+      "DatabaseReader"
+    ]
+  },
+  {
+    "name": "mssql.engine",
+    "filePath": "src/database/engines/mssql.engine.ts",
+    "type": "class",
+    "exports": [
+      "MssqlEngine"
+    ]
+  },
+  {
+    "name": "mysql.engine",
+    "filePath": "src/database/engines/mysql.engine.ts",
+    "type": "class",
+    "exports": [
+      "MysqlEngine"
+    ]
+  },
+  {
+    "name": "postgres.engine",
+    "filePath": "src/database/engines/postgres.engine.ts",
+    "type": "class",
+    "exports": [
+      "PostgresEngine"
+    ]
+  },
+  {
+    "name": "types",
+    "filePath": "src/database/types.ts",
+    "type": "module",
+    "exports": [
+      "DatabaseProvider",
+      "DatabaseSummary",
+      "DatabaseMeta",
+      "TableDetail",
+      "ColumnDetail",
+      "PrimaryKeyDetail",
+      "ForeignKeyDetail",
+      "IndexDetail",
+      "ViewDetail",
+      "StoredProcedureDetail",
+      "ParameterDetail",
+      "IDatabaseEngine"
+    ]
+  },
+  {
+    "name": "repository-indexer",
+    "filePath": "src/indexer/repository-indexer.ts",
+    "type": "class",
+    "exports": [
+      "RepositoryIndexer"
+    ]
+  },
+  {
+    "name": "api-endpoint-scanner",
+    "filePath": "src/indexer/scanners/api-endpoint-scanner.ts",
+    "type": "module",
+    "exports": [
+      "extractApiEndpoints"
+    ]
+  },
+  {
+    "name": "architecture-detector",
+    "filePath": "src/indexer/scanners/architecture-detector.ts",
+    "type": "module",
+    "exports": [
+      "detectArchitecture"
+    ]
+  },
+  {
+    "name": "code-structure-scanner",
+    "filePath": "src/indexer/scanners/code-structure-scanner.ts",
+    "type": "module",
+    "exports": [
+      "extractServices",
+      "extractControllers",
+      "extractRepositories",
+      "extractComponents"
+    ]
+  },
+  {
+    "name": "database-script-scanner",
+    "filePath": "src/indexer/scanners/database-script-scanner.ts",
+    "type": "module",
+    "exports": [
+      "extractDatabaseScripts"
+    ]
+  },
+  {
+    "name": "file-scanner",
+    "filePath": "src/indexer/scanners/file-scanner.ts",
+    "type": "module",
+    "exports": [
+      "scanFiles"
+    ]
+  },
+  {
+    "name": "framework-detector",
+    "filePath": "src/indexer/scanners/framework-detector.ts",
+    "type": "module",
+    "exports": [
+      "detectFrameworks"
+    ]
+  },
+  {
+    "name": "language-detector",
+    "filePath": "src/indexer/scanners/language-detector.ts",
+    "type": "module",
+    "exports": [
+      "detectLanguages"
+    ]
+  },
+  {
+    "name": "reusable-component-scanner",
+    "filePath": "src/indexer/scanners/reusable-component-scanner.ts",
+    "type": "module",
+    "exports": [
+      "extractReusableComponents"
+    ]
+  },
+  {
+    "name": "types",
+    "filePath": "src/indexer/types.ts",
+    "type": "module",
+    "exports": [
+      "RepositoryContext",
+      "RepositoryMeta",
+      "LanguageSummary",
+      "FrameworkDetection",
+      "ArchitecturePattern",
+      "ServiceEntry",
+      "ControllerEntry",
+      "ControllerAction",
+      "RepositoryEntry",
+      "ComponentEntry",
+      "ApiEndpoint",
+      "DatabaseScriptEntry",
+      "ReusableComponentEntry",
+      "ScannedFile"
+    ]
+  },
+  {
+    "name": "orchestrator",
+    "filePath": "src/orchestrator/orchestrator.ts",
+    "type": "class",
+    "exports": [
+      "OrchestratorOptions",
+      "OrchestratorResult",
+      "Orchestrator"
+    ]
+  },
+  {
+    "name": "output-generator",
+    "filePath": "src/output/output-generator.ts",
+    "type": "class",
+    "exports": [
+      "slugify",
+      "OutputGenerator"
+    ]
+  },
+  {
+    "name": "index",
+    "filePath": "src/types/index.ts",
+    "type": "module",
+    "exports": [
+      "ExecutionMode",
+      "AgentRole",
+      "AgentMessage",
+      "SessionContext",
+      "AppConfig",
+      "AiProviderConfig",
+      "LoggingConfig",
+      "OutputConfig",
+      "DatabaseConfig",
+      "AgentResult",
+      "RepoIndex",
+      "FileEntry",
+      "DatabaseSchema",
+      "TableInfo",
+      "ColumnInfo",
+      "Estimation",
+      "EstimationItem",
+      "RequirementsAnalysis",
+      "Requirement",
+      "ScopeDefinition",
+      "ScopeItem",
+      "ReuseAnalysis",
+      "ReuseCandidate",
+      "SolutionArchitecture",
+      "ProposedComponent",
+      "Integration",
+      "DataFlow",
+      "ImpactAnalysis",
+      "ImpactedArea",
+      "PrototypeOutput",
+      "FeatureContext",
+      "StepResult",
+      "PipelineResult"
+    ]
+  }
+]

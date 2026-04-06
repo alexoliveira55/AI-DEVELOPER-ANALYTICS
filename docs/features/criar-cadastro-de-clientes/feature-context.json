@@ -1,0 +1,511 @@
+{
+  "rawRequirements": "criar cadastro de clientes",
+  "repositoryContext": {
+    "meta": {
+      "name": "ai-developer-analytics",
+      "rootPath": "D:\\desenvolvimento\\ai-developer-analytics",
+      "indexedAt": "2026-04-02T15:35:03.625Z",
+      "totalFiles": 64,
+      "totalLines": 8382,
+      "totalSizeBytes": 301883
+    },
+    "languages": [
+      {
+        "language": "TypeScript",
+        "files": 44,
+        "lines": 6408,
+        "percentage": 76.45
+      },
+      {
+        "language": "JSON",
+        "files": 17,
+        "lines": 1907,
+        "percentage": 22.75
+      },
+      {
+        "language": "Markdown",
+        "files": 3,
+        "lines": 67,
+        "percentage": 0.8
+      }
+    ],
+    "frameworks": [],
+    "architecturePattern": {
+      "primary": "Event-Driven",
+      "patterns": [
+        "Event-Driven"
+      ],
+      "evidence": [
+        "EventEmitter or event bus patterns found in code"
+      ]
+    },
+    "services": [],
+    "controllers": [],
+    "repositories": [],
+    "components": [
+      {
+        "name": "database-reader.agent",
+        "filePath": "src/agents/database-reader.agent.ts",
+        "type": "class",
+        "exports": [
+          "DatabaseReaderAgent"
+        ]
+      },
+      {
+        "name": "documentation-generator.agent",
+        "filePath": "src/agents/documentation-generator.agent.ts",
+        "type": "class",
+        "exports": [
+          "DocumentationGeneratorAgent"
+        ]
+      },
+      {
+        "name": "estimation.agent",
+        "filePath": "src/agents/estimation.agent.ts",
+        "type": "class",
+        "exports": [
+          "EstimationAgent"
+        ]
+      },
+      {
+        "name": "impact-analysis.agent",
+        "filePath": "src/agents/impact-analysis.agent.ts",
+        "type": "class",
+        "exports": [
+          "ImpactAnalysisAgent"
+        ]
+      },
+      {
+        "name": "prototype-generator.agent",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "type": "class",
+        "exports": [
+          "PrototypeGeneratorAgent"
+        ]
+      },
+      {
+        "name": "repository-indexer.agent",
+        "filePath": "src/agents/repository-indexer.agent.ts",
+        "type": "class",
+        "exports": [
+          "RepositoryIndexerAgent"
+        ]
+      },
+      {
+        "name": "requirements.agent",
+        "filePath": "src/agents/requirements.agent.ts",
+        "type": "class",
+        "exports": [
+          "RequirementsAgent"
+        ]
+      },
+      {
+        "name": "reuse.agent",
+        "filePath": "src/agents/reuse.agent.ts",
+        "type": "class",
+        "exports": [
+          "ReuseAgent"
+        ]
+      },
+      {
+        "name": "scope.agent",
+        "filePath": "src/agents/scope.agent.ts",
+        "type": "class",
+        "exports": [
+          "ScopeAgent"
+        ]
+      },
+      {
+        "name": "solution-architect.agent",
+        "filePath": "src/agents/solution-architect.agent.ts",
+        "type": "class",
+        "exports": [
+          "SolutionArchitectAgent"
+        ]
+      },
+      {
+        "name": "config-loader",
+        "filePath": "src/config/config-loader.ts",
+        "type": "module",
+        "exports": [
+          "loadConfig"
+        ]
+      },
+      {
+        "name": "agent.interface",
+        "filePath": "src/core/agent.interface.ts",
+        "type": "module",
+        "exports": [
+          "IAgent"
+        ]
+      },
+      {
+        "name": "logger",
+        "filePath": "src/core/logger.ts",
+        "type": "class",
+        "exports": [
+          "Logger"
+        ]
+      },
+      {
+        "name": "mode-manager",
+        "filePath": "src/core/mode-manager.ts",
+        "type": "class",
+        "exports": [
+          "ModeManager"
+        ]
+      },
+      {
+        "name": "database-reader",
+        "filePath": "src/database/database-reader.ts",
+        "type": "class",
+        "exports": [
+          "DatabaseReaderOptions",
+          "DatabaseReader"
+        ]
+      },
+      {
+        "name": "mssql.engine",
+        "filePath": "src/database/engines/mssql.engine.ts",
+        "type": "class",
+        "exports": [
+          "MssqlEngine"
+        ]
+      },
+      {
+        "name": "mysql.engine",
+        "filePath": "src/database/engines/mysql.engine.ts",
+        "type": "class",
+        "exports": [
+          "MysqlEngine"
+        ]
+      },
+      {
+        "name": "postgres.engine",
+        "filePath": "src/database/engines/postgres.engine.ts",
+        "type": "class",
+        "exports": [
+          "PostgresEngine"
+        ]
+      },
+      {
+        "name": "types",
+        "filePath": "src/database/types.ts",
+        "type": "module",
+        "exports": [
+          "DatabaseProvider",
+          "DatabaseSummary",
+          "DatabaseMeta",
+          "TableDetail",
+          "ColumnDetail",
+          "PrimaryKeyDetail",
+          "ForeignKeyDetail",
+          "IndexDetail",
+          "ViewDetail",
+          "StoredProcedureDetail",
+          "ParameterDetail",
+          "IDatabaseEngine"
+        ]
+      },
+      {
+        "name": "repository-indexer",
+        "filePath": "src/indexer/repository-indexer.ts",
+        "type": "class",
+        "exports": [
+          "RepositoryIndexer"
+        ]
+      },
+      {
+        "name": "api-endpoint-scanner",
+        "filePath": "src/indexer/scanners/api-endpoint-scanner.ts",
+        "type": "module",
+        "exports": [
+          "extractApiEndpoints"
+        ]
+      },
+      {
+        "name": "architecture-detector",
+        "filePath": "src/indexer/scanners/architecture-detector.ts",
+        "type": "module",
+        "exports": [
+          "detectArchitecture"
+        ]
+      },
+      {
+        "name": "code-structure-scanner",
+        "filePath": "src/indexer/scanners/code-structure-scanner.ts",
+        "type": "module",
+        "exports": [
+          "extractServices",
+          "extractControllers",
+          "extractRepositories",
+          "extractComponents"
+        ]
+      },
+      {
+        "name": "database-script-scanner",
+        "filePath": "src/indexer/scanners/database-script-scanner.ts",
+        "type": "module",
+        "exports": [
+          "extractDatabaseScripts"
+        ]
+      },
+      {
+        "name": "file-scanner",
+        "filePath": "src/indexer/scanners/file-scanner.ts",
+        "type": "module",
+        "exports": [
+          "scanFiles"
+        ]
+      },
+      {
+        "name": "framework-detector",
+        "filePath": "src/indexer/scanners/framework-detector.ts",
+        "type": "module",
+        "exports": [
+          "detectFrameworks"
+        ]
+      },
+      {
+        "name": "language-detector",
+        "filePath": "src/indexer/scanners/language-detector.ts",
+        "type": "module",
+        "exports": [
+          "detectLanguages"
+        ]
+      },
+      {
+        "name": "reusable-component-scanner",
+        "filePath": "src/indexer/scanners/reusable-component-scanner.ts",
+        "type": "module",
+        "exports": [
+          "extractReusableComponents"
+        ]
+      },
+      {
+        "name": "types",
+        "filePath": "src/indexer/types.ts",
+        "type": "module",
+        "exports": [
+          "RepositoryContext",
+          "RepositoryMeta",
+          "LanguageSummary",
+          "FrameworkDetection",
+          "ArchitecturePattern",
+          "ServiceEntry",
+          "ControllerEntry",
+          "ControllerAction",
+          "RepositoryEntry",
+          "ComponentEntry",
+          "ApiEndpoint",
+          "DatabaseScriptEntry",
+          "ReusableComponentEntry",
+          "ScannedFile"
+        ]
+      },
+      {
+        "name": "orchestrator",
+        "filePath": "src/orchestrator/orchestrator.ts",
+        "type": "class",
+        "exports": [
+          "OrchestratorOptions",
+          "OrchestratorResult",
+          "Orchestrator"
+        ]
+      },
+      {
+        "name": "output-generator",
+        "filePath": "src/output/output-generator.ts",
+        "type": "class",
+        "exports": [
+          "slugify",
+          "OutputGenerator"
+        ]
+      },
+      {
+        "name": "index",
+        "filePath": "src/types/index.ts",
+        "type": "module",
+        "exports": [
+          "ExecutionMode",
+          "AgentRole",
+          "AgentMessage",
+          "SessionContext",
+          "AppConfig",
+          "AiProviderConfig",
+          "LoggingConfig",
+          "OutputConfig",
+          "DatabaseConfig",
+          "AgentResult",
+          "RepoIndex",
+          "FileEntry",
+          "DatabaseSchema",
+          "TableInfo",
+          "ColumnInfo",
+          "Estimation",
+          "EstimationItem",
+          "RequirementsAnalysis",
+          "Requirement",
+          "ScopeDefinition",
+          "ScopeItem",
+          "ReuseAnalysis",
+          "ReuseCandidate",
+          "SolutionArchitecture",
+          "ProposedComponent",
+          "Integration",
+          "DataFlow",
+          "ImpactAnalysis",
+          "ImpactedArea",
+          "PrototypeOutput",
+          "FeatureContext",
+          "StepResult",
+          "PipelineResult"
+        ]
+      }
+    ],
+    "apiEndpoints": [
+      {
+        "method": "GET",
+        "route": "/",
+        "handler": "findAll",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 155
+      },
+      {
+        "method": "GET",
+        "route": "/",
+        "handler": "push",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 339
+      },
+      {
+        "method": "GET",
+        "route": ":id",
+        "handler": "push",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 344
+      },
+      {
+        "method": "POST",
+        "route": "/",
+        "handler": "push",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 349
+      },
+      {
+        "method": "PUT",
+        "route": ":id",
+        "handler": "push",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 354
+      },
+      {
+        "method": "DELETE",
+        "route": ":id",
+        "handler": "push",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 359
+      },
+      {
+        "method": "GET",
+        "route": "/${routeName}",
+        "handler": "inline-handler",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 482
+      },
+      {
+        "method": "GET",
+        "route": "/${routeName}/:id",
+        "handler": "inline-handler",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 487
+      },
+      {
+        "method": "POST",
+        "route": "/${routeName}",
+        "handler": "inline-handler",
+        "filePath": "src/agents/prototype-generator.agent.ts",
+        "line": 492
+      },
+      {
+        "method": "GET",
+        "route": "/path",
+        "handler": "handler",
+        "filePath": "src/indexer/scanners/api-endpoint-scanner.ts",
+        "line": 40
+      }
+    ],
+    "databaseScripts": [],
+    "reusableComponents": []
+  },
+  "repoIndex": {
+    "files": [
+      {
+        "path": "TypeScript",
+        "language": "TypeScript",
+        "lines": 6408,
+        "size": 0
+      },
+      {
+        "path": "JSON",
+        "language": "JSON",
+        "lines": 1907,
+        "size": 0
+      },
+      {
+        "path": "Markdown",
+        "language": "Markdown",
+        "lines": 67,
+        "size": 0
+      }
+    ],
+    "languages": {
+      "TypeScript": 6408,
+      "JSON": 1907,
+      "Markdown": 67
+    },
+    "totalLines": 8382,
+    "dependencies": []
+  },
+  "reuseAnalysis": {
+    "candidates": [],
+    "summary": "No existing components match the requirements. New implementations are needed.",
+    "reuseScore": 0
+  },
+  "impactAnalysis": {
+    "impactedAreas": [],
+    "riskLevel": "low",
+    "breakingChanges": [],
+    "testingRecommendations": [
+      "End-to-end regression test suite"
+    ],
+    "migrationNotes": []
+  },
+  "estimation": {
+    "totalHours": 23.9,
+    "breakdown": [
+      {
+        "task": "TypeScript codebase comprehension",
+        "hours": 16,
+        "complexity": "medium"
+      },
+      {
+        "task": "JSON codebase comprehension",
+        "hours": 3.8,
+        "complexity": "low"
+      },
+      {
+        "task": "Markdown codebase comprehension",
+        "hours": 0.1,
+        "complexity": "low"
+      },
+      {
+        "task": "Testing & QA",
+        "hours": 4,
+        "complexity": "low"
+      }
+    ],
+    "confidence": "high"
+  },
+  "documentation": "# Solution Analysis\n\n## Repository Overview\n- **Total files**: 3\n- **Total lines**: 8.382\n- **Dependencies**: 0\n\n### Language Breakdown\n| Language | Lines |\n|----------|-------|\n| TypeScript | 6.408 |\n| JSON | 1.907 |\n| Markdown | 67 |\n\n## Impact Analysis\nRisk level: **low**\n\n### Testing Recommendations\n- End-to-end regression test suite\n\n## Estimation\n**Total estimated hours**: 23.9\n**Confidence**: high\n\n| Task | Hours | Complexity |\n|------|-------|------------|\n| TypeScript codebase comprehension | 16 | medium |\n| JSON codebase comprehension | 3.8 | low |\n| Markdown codebase comprehension | 0.1 | low |\n| Testing & QA | 4 | low |\n"
+}

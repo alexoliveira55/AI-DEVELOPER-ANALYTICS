@@ -1,0 +1,10 @@
+{
+  "focusFactor": 0.7,
+  "hoursPerStoryPoint": 6,
+  "copilotGain": 0.35,
+  "hybridGain": 0.2,
+  "documentationFormat": "html",
+  "prototypeFramework": "flutter",
+  "databaseConnection": "CONNECTION_STRING",
+  "language": "pt-br"
+}

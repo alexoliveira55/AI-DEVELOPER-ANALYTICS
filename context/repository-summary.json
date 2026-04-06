@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "name": "ai-developer-analytics",
+    "rootPath": "D:\\desenvolvimento\\ai-developer-analytics",
+    "indexedAt": "2026-04-02T16:45:44.023Z",
+    "totalFiles": 72,
+    "totalLines": 9083,
+    "totalSizeBytes": 318966
+  },
+  "languages": [
+    {
+      "language": "TypeScript",
+      "files": 44,
+      "lines": 6409,
+      "percentage": 70.56
+    },
+    {
+      "language": "JSON",
+      "files": 19,
+      "lines": 2562,
+      "percentage": 28.21
+    },
+    {
+      "language": "Markdown",
+      "files": 9,
+      "lines": 112,
+      "percentage": 1.23
+    }
+  ],
+  "frameworks": [],
+  "architecturePattern": {
+    "primary": "Event-Driven",
+    "patterns": [
+      "Event-Driven"
+    ],
+    "evidence": [
+      "EventEmitter or event bus patterns found in code"
+    ]
+  }
+}
