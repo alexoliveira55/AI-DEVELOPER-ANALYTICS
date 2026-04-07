@@ -14,8 +14,12 @@ const CLASS_RE = /(?:export\s+)?class\s+(\w+)/g;
 const METHOD_RE = /(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:{]/g;
 const INJECT_RE = /(?:private|protected|readonly)\s+(?:readonly\s+)?(\w+)\s*:\s*(\w+)/g;
 
+// VFP-specific patterns
+const VFP_CLASS_RE = /DEFINE\s+CLASS\s+(\w+)\s+AS\s+(\w+)/gi;
+const VFP_PROCEDURE_RE = /\bPROCEDURE\s+(\w+)/gi;
+
 export function extractServices(files: ScannedFile[]): ServiceEntry[] {
-  return files
+  const standardServices = files
     .filter((f) => SERVICE_FILE_PATTERN.test(f.relativePath))
     .map((f) => {
       const className = firstMatch(CLASS_RE, f.content) ?? nameFromPath(f.relativePath);
@@ -25,6 +29,20 @@ export function extractServices(files: ScannedFile[]): ServiceEntry[] {
       const injectedDependencies = allMatchesGroup(INJECT_RE, f.content, 2);
       return { name: className, filePath: f.relativePath, methods, injectedDependencies };
     });
+
+  // VFP: extract DEFINE CLASS as services from .prg and converted .xml files
+  const vfpServices = files
+    .filter((f) => f.language === 'Visual FoxPro' && VFP_CLASS_RE.test(f.content))
+    .map((f) => {
+      VFP_CLASS_RE.lastIndex = 0;
+      const className = firstMatch(VFP_CLASS_RE, f.content) ?? nameFromPath(f.relativePath);
+      const methods = allMatches(VFP_PROCEDURE_RE, f.content).filter(
+        (m) => !['Init', 'Destroy', 'Error'].includes(m),
+      );
+      return { name: className, filePath: f.relativePath, methods, injectedDependencies: [] as string[] };
+    });
+
+  return [...standardServices, ...vfpServices];
 }
 
 // ── Controllers ──────────────────────────────────────────────────────────────
@@ -151,5 +169,5 @@ function nameFromPath(relativePath: string): string {
 }
 
 function isCodeFile(f: ScannedFile): boolean {
-  return ['TypeScript', 'JavaScript', 'Python', 'Java', 'C#', 'Go', 'Rust', 'Kotlin', 'Ruby', 'PHP', 'Dart', 'Swift'].includes(f.language);
+  return ['TypeScript', 'JavaScript', 'Python', 'Java', 'C#', 'Go', 'Rust', 'Kotlin', 'Ruby', 'PHP', 'Dart', 'Swift', 'Visual FoxPro'].includes(f.language);
 }

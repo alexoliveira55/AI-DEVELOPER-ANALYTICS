@@ -247,7 +247,7 @@ export interface SolutionArchitecture {
 
 export interface ProposedComponent {
   name: string;
-  type: 'service' | 'controller' | 'repository' | 'middleware' | 'utility' | 'model' | 'migration';
+  type: 'service' | 'controller' | 'repository' | 'middleware' | 'utility' | 'model' | 'migration' | 'form';
   description: string;
   isNew: boolean;
   dependencies: string[];

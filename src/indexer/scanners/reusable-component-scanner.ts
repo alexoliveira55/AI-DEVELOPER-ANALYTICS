@@ -1,6 +1,7 @@
 import { ReusableComponentEntry, ScannedFile } from '../types';
 
 const EXPORT_RE = /export\s+(?:default\s+)?(?:class|function|const|interface|type|enum)\s+(\w+)/g;
+const VFP_DEFINE_RE = /DEFINE\s+CLASS\s+(\w+)/gi;
 
 interface CategoryRule {
   category: ReusableComponentEntry['category'];
@@ -29,7 +30,9 @@ export function extractReusableComponents(files: ScannedFile[]): ReusableCompone
 
     for (const rule of rules) {
       if (rule.test(file)) {
-        const exports = allMatches(EXPORT_RE, file.content);
+        const exports = file.language === 'Visual FoxPro'
+          ? allMatches(VFP_DEFINE_RE, file.content)
+          : allMatches(EXPORT_RE, file.content);
         if (exports.length > 0) {
           results.push({
             name: nameFromPath(file.relativePath),
@@ -47,7 +50,7 @@ export function extractReusableComponents(files: ScannedFile[]): ReusableCompone
 }
 
 function isCodeFile(f: ScannedFile): boolean {
-  return ['TypeScript', 'JavaScript', 'Python', 'Java', 'C#', 'Go', 'Rust', 'Kotlin', 'Ruby', 'PHP', 'Dart', 'Swift'].includes(f.language);
+  return ['TypeScript', 'JavaScript', 'Python', 'Java', 'C#', 'Go', 'Rust', 'Kotlin', 'Ruby', 'PHP', 'Dart', 'Swift', 'Visual FoxPro'].includes(f.language);
 }
 
 function fileName(f: ScannedFile): string {

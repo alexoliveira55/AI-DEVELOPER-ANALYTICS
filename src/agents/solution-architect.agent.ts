@@ -51,9 +51,58 @@ export class SolutionArchitectAgent extends BaseAgent<FeatureContext, SolutionAr
     const routePrefix = this.detectRoutePrefix(existingEndpoints.map((e) => e.route));
 
     // ── New components for each new module ─────────────────
+    const isVfpRepo = repo?.languages.some((l) => l.language.includes('FoxPro'));
+
     for (const mod of scope.newModules) {
       const moduleName = mod.replace(/-module$/, '');
       const pascal = this.pascalCase(moduleName);
+
+      if (isVfpRepo) {
+        // ── VFP-specific component generation ──────────────
+        // BLL (Business Logic Layer)
+        proposedComponents.push({
+          name: this.applyNamingConvention(`${pascal}BLL`, 'PascalCase'),
+          type: 'service',
+          description: Labels.solution.coreBusinessLogic(moduleName) + ' (VFP DEFINE CLASS, arquivo .prg)',
+          isNew: true,
+          dependencies: [`${pascal}DAL`],
+        });
+
+        // DAL (Data Access Layer)
+        proposedComponents.push({
+          name: this.applyNamingConvention(`${pascal}DAL`, 'PascalCase'),
+          type: 'repository',
+          description: `Camada de acesso a dados via SQL pass-through para ${moduleName} (VFP .prg)`,
+          isNew: true,
+          dependencies: [],
+        });
+
+        // Form XML (converted from .scx/.sct)
+        if (this.needsController(requirements, moduleName)) {
+          proposedComponents.push({
+            name: `frm${pascal}`,
+            type: 'form',
+            description: `Formulário VFP para ${moduleName} — arquivo .xml (convertido de .scx/.sct) + code-behind .prg`,
+            isNew: true,
+            dependencies: [`${pascal}BLL`],
+          });
+        }
+
+        // Migration/Table creation
+        if (this.needsDataLayer(requirements, moduleName, existingTables.map((t) => t.name))) {
+          if (!existingTables.some((t) => t.name.toLowerCase().includes(moduleName))) {
+            proposedComponents.push({
+              name: `setup_${moduleName}_tables`,
+              type: 'migration',
+              description: Labels.solution.dbMigration(moduleName) + ' (VFP .prg com SQLEXEC)',
+              isNew: true,
+              dependencies: [],
+            });
+          }
+        }
+
+        continue; // skip generic component generation for VFP modules
+      }
 
       // Service — with inferred dependencies from reuse + existing services
       const serviceDeps = this.inferServiceDependencies(reuse, existingServices, moduleName);

@@ -106,6 +106,16 @@ const signals: PatternSignal[] = [
     },
     evidence: 'multiple .module. files found',
   },
+  // VFP Classic (PRG + forms converted to XML)
+  {
+    pattern: 'VFP Classic',
+    test: (files) => {
+      const hasVfp = files.some((f) => f.language === 'Visual FoxPro');
+      const hasPrg = files.some((f) => f.extension === '.prg');
+      return hasVfp || hasPrg;
+    },
+    evidence: 'Visual FoxPro .prg files and/or converted form XML files detected',
+  },
 ];
 
 export function detectArchitecture(files: ScannedFile[]): ArchitecturePattern {

@@ -32,6 +32,9 @@ function isDatabaseFile(f: ScannedFile): boolean {
   // ORM migration files (TypeScript/JavaScript)
   if (MIGRATION_PATH_RE.test(f.relativePath) && ['TypeScript', 'JavaScript'].includes(f.language))
     return true;
+  // VFP files with SQL or table operations
+  if (f.language === 'Visual FoxPro' && /(?:CREATE TABLE|ALTER TABLE|SQLEXEC|CREATE CURSOR|OPEN DATABASE|USE\s+\w+)/i.test(f.content))
+    return true;
   return false;
 }
 

@@ -45,6 +45,8 @@ const LANGUAGE_MAP: Record<string, string> = {
   '.proto': 'Protobuf',
   '.tf': 'Terraform', '.hcl': 'HCL',
   '.vue': 'Vue', '.svelte': 'Svelte',
+  // Visual FoxPro
+  '.prg': 'Visual FoxPro', '.vcx': 'Visual FoxPro', '.vct': 'Visual FoxPro',
 };
 
 /** Recursively scans a directory and returns all text-based source files. */
@@ -52,6 +54,12 @@ export function scanFiles(rootPath: string): ScannedFile[] {
   const results: ScannedFile[] = [];
   walk(rootPath, rootPath, results);
   return results;
+}
+
+/** Detect XML files that are converted VFP forms/screens (.scx/.sct → .xml). */
+function isVfpFormXml(content: string): boolean {
+  const head = content.slice(0, 2000);
+  return /VFPData|PLATFORM\s*=\s*"WINDOWS"|BASECLASS\s*=|<CommandButton|<TextBox|<EditBox|<Grid\b.*RecordSource|<PageFrame|ObjType\s*=\s*"\d+"/i.test(head);
 }
 
 function walk(root: string, dir: string, out: ScannedFile[]): void {
@@ -79,7 +87,7 @@ function walk(root: string, dir: string, out: ScannedFile[]): void {
 
     // Handle extensionless files like Dockerfile
     const baseName = entry.name.toLowerCase();
-    const language = LANGUAGE_MAP[ext]
+    let language = LANGUAGE_MAP[ext]
       ?? (baseName === 'dockerfile' ? 'Docker' : undefined)
       ?? (baseName === 'makefile' ? 'Makefile' : undefined)
       ?? undefined;
@@ -91,6 +99,11 @@ function walk(root: string, dir: string, out: ScannedFile[]): void {
       content = fs.readFileSync(fullPath, 'utf-8');
     } catch {
       continue;
+    }
+
+    // Reclassify XML files that are converted VFP forms (.scx/.sct → .xml)
+    if (language === 'XML' && isVfpFormXml(content)) {
+      language = 'Visual FoxPro';
     }
 
     out.push({

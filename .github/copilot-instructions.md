@@ -100,6 +100,7 @@ Configured in `tsconfig.json`: `@agents/*`, `@core/*`, `@services/*`, `@config/*
 - **Context files are auto-generated**: `context/*.json` is overwritten by the indexer. Don't manually edit.
 - **Estimation math**: `baseHours × depMultiplier × reuseDiscount`. High dependency counts amplify estimates significantly.
 - **RequirementsAgent inference** depends on naming conventions ("auth", "valid", etc.) in existing service/component names. Inconsistent naming produces inaccurate inferred requirements.
+- **Visual FoxPro form files**: `.scx` and `.sct` files have been **converted to `.xml`**. The file scanner auto-detects VFP form XML via content heuristics (`VFPData`, `BASECLASS`, etc.). All UI analysis and modifications must target `.xml` (forms) and `.prg` (code-behind) files. Never reference `.scx`/`.sct` as source files.
 
 ## Configuration
 

@@ -46,12 +46,16 @@ Você é um desenvolvedor Visual FoxPro 9.0 senior com 15+ anos. Gere código PR
 - SQLSETPROP para timeout e packet size
 
 ### UI/Forms
-- Form classes herdando de base form (frmBase)
+- Formulários .scx/.sct foram CONVERTIDOS para .xml — toda alteração de UI nos arquivos .xml
+- Forms code-behind em .prg separado (event handlers, data binding)
+- Form classes herdando de base form (frmBase) via DEFINE CLASS
 - Grid com colunas configuráveis e headers localizados
 - Pageframe para formulários complexos
 - Input validation no LostFocus + botão Save
 - Mensagens via MESSAGEBOX() com constantes (#DEFINE MB_*)
 - Toolbar unificada com navegação CRUD
+- XML do formulário contém definição visual (properties, layout, controles)
+- PRG do formulário contém lógica (Init, Click, eventos, métodos)
 
 ### Relatórios
 - Report Designer (.frx) referenciado via DO REPORT FORM
@@ -79,9 +83,10 @@ Project/
   │   ├── cFeatureData.prg       # Data access
   │   └── cFeatureValidator.prg  # Validação
   ├── Forms/
-  │   ├── frmFeatureList.scx     # Form lista
-  │   ├── frmFeatureEdit.scx     # Form edição
-  │   └── frmFeatureList.prg     # Code-behind
+  │   ├── frmFeatureList.xml     # Form lista (convertido de .scx/.sct → .xml)
+  │   ├── frmFeatureEdit.xml     # Form edição (convertido de .scx/.sct → .xml)
+  │   ├── frmFeatureList.prg     # Code-behind lista (event handlers)
+  │   └── frmFeatureEdit.prg     # Code-behind edição (event handlers)
   ├── Reports/
   │   ├── rptFeatureList.frx     # Relatório lista
   │   └── rptFeatureDetail.frx   # Relatório detalhe
@@ -94,6 +99,9 @@ Project/
       ├── setup_tables.prg       # Criação de tabelas
       └── sample_data.prg        # Dados de teste
 ```
+
+IMPORTANTE: Os arquivos .scx e .sct foram convertidos para .xml.
+Toda análise e alteração de formulários/telas deve ser feita nos .xml e .prg correspondentes.
 
 ### Migração .NET
 - Documentar interfaces públicas para futura migration

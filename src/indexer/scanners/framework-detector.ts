@@ -179,6 +179,22 @@ const rules: FrameworkRule[] = [
       return { detected: found, evidence: '.tf files found' };
     },
   },
+  // ── Visual FoxPro ──────────────────────────────────────
+  {
+    name: 'Visual FoxPro 9.0',
+    detect: (files) => {
+      const vfpFiles = files.filter((f) => f.language === 'Visual FoxPro');
+      return { detected: vfpFiles.length > 0, version: '9.0', evidence: 'Visual FoxPro .prg or converted form XML files found' };
+    },
+  },
+  {
+    name: 'West Wind Web Connection',
+    detect: (files) => {
+      const vfpFiles = files.filter((f) => f.language === 'Visual FoxPro');
+      const found = vfpFiles.some((f) => /wwAPI|wwRequestHandler|wwServer|cWebRequest|wwProcess/i.test(f.content));
+      return { detected: found, evidence: 'West Wind Web Connection classes found in VFP code' };
+    },
+  },
 ];
 
 export function detectFrameworks(files: ScannedFile[], rootPath: string): FrameworkDetection[] {
