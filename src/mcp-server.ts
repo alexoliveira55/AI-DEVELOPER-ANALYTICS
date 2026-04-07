@@ -14,7 +14,8 @@ import * as path from 'path';
 import { loadConfig } from './config';
 import { Orchestrator } from './orchestrator';
 import { OutputGenerator } from './output';
-import { Logger } from './core';
+import { Logger, RepositoryContextCache } from './core';
+import { AnalysisDepth } from './types';
 
 // Suppress all console/winston output — MCP uses stdout for JSON-RPC
 Logger.silent = true;
@@ -194,11 +195,12 @@ server.tool(
   {
     description: z.string().describe('Descrição da funcionalidade'),
     projectPath: z.string().optional().describe('Caminho do repositório'),
+    depth: z.enum(['quick', 'standard', 'deep']).optional().describe('Profundidade da análise: quick (rápida), standard (padrão), deep (completa)'),
     enableFlowcharts: z.boolean().optional().describe('Gerar fluxogramas Mermaid'),
     enableSpecialists: z.boolean().optional().describe('Ativar especialistas por linguagem'),
     enableExecutiveDocs: z.boolean().optional().describe('Gerar documentação técnica e executiva'),
   },
-  async ({ description, projectPath, enableFlowcharts, enableSpecialists, enableExecutiveDocs }) => {
+  async ({ description, projectPath, depth, enableFlowcharts, enableSpecialists, enableExecutiveDocs }) => {
     const resolved = resolveProjectPath(projectPath);
     const config = loadConfig();
     const orchestrator = new Orchestrator();
@@ -207,6 +209,7 @@ server.tool(
       projectPath: resolved,
       config,
       requirements: description,
+      depth: (depth as AnalysisDepth) ?? 'standard',
       enableFlowcharts: enableFlowcharts ?? true,
       enableSpecialists: enableSpecialists ?? false,
       enableExecutiveDocs: enableExecutiveDocs ?? true,
@@ -237,11 +240,26 @@ server.tool(
     }
 
     if (fc.estimation) {
-      lines.push(`**Estimativa**: ${fc.estimation.totalHours}h (confiança: ${fc.estimation.confidence})\n`);
-      if (fc.estimation.breakdown.length > 0) {
+      const est = fc.estimation;
+      lines.push(`**Estimativa**: ${est.totalHours}h (confiança: ${est.confidence})`);
+      if (est.storyPoints) lines.push(`**Story Points**: ${est.storyPoints}`);
+      lines.push('');
+
+      if (est.scenarios) {
+        lines.push('### Cenários\n');
+        lines.push('| Cenário | Horas | Dias |');
+        lines.push('|---|---|---|');
+        lines.push(`| Humano | ${est.scenarios.human.hours}h | ${est.scenarios.human.days}d |`);
+        lines.push(`| Com Copilot (${est.scenarios.withCopilot.gain}) | ${est.scenarios.withCopilot.hours}h | ${est.scenarios.withCopilot.days}d |`);
+        lines.push(`| Híbrido (${est.scenarios.hybrid.gain}) | ${est.scenarios.hybrid.hours}h | ${est.scenarios.hybrid.days}d |`);
+        lines.push('');
+      }
+
+      if (est.breakdown.length > 0) {
+        lines.push('### Detalhamento\n');
         lines.push('| Tarefa | Horas | Complexidade |');
         lines.push('|---|---|---|');
-        for (const b of fc.estimation.breakdown) {
+        for (const b of est.breakdown) {
           lines.push(`| ${b.task} | ${b.hours}h | ${b.complexity} |`);
         }
         lines.push('');
@@ -271,6 +289,33 @@ server.tool(
       lines.push(fc.documentationPackage.summary);
     }
 
+    // ── Coherence Report ─────────────────────────────────
+    if (fc.coherenceReport) {
+      const cr = fc.coherenceReport;
+      lines.push(`## Coerência da Análise\n`);
+      lines.push(`**Score**: ${cr.coherenceScore}%\n`);
+      if (cr.uncoveredRequirements.length > 0) {
+        lines.push('### Requisitos sem cobertura de escopo\n');
+        for (const r of cr.uncoveredRequirements) lines.push(`- ${r}`);
+        lines.push('');
+      }
+      if (cr.scopeWithoutRequirement.length > 0) {
+        lines.push('### Escopo sem requisito justificador\n');
+        for (const s of cr.scopeWithoutRequirement) lines.push(`- ${s}`);
+        lines.push('');
+      }
+      if (cr.estimationGaps.length > 0) {
+        lines.push('### Gaps na estimativa\n');
+        for (const g of cr.estimationGaps) lines.push(`- ${g}`);
+        lines.push('');
+      }
+      if (cr.suggestions.length > 0) {
+        lines.push('### Sugestões\n');
+        for (const s of cr.suggestions) lines.push(`- ${s}`);
+        lines.push('');
+      }
+    }
+
     lines.push(`\n---\n_Documentação completa em \`${outputDir}\`_`);
 
     return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
@@ -285,8 +330,9 @@ server.tool(
   {
     description: z.string().describe('Descrição da funcionalidade'),
     projectPath: z.string().optional().describe('Caminho do repositório'),
+    depth: z.enum(['quick', 'standard', 'deep']).optional().describe('Profundidade: quick (rápida), standard (padrão), deep (completa)'),
   },
-  async ({ description, projectPath }) => {
+  async ({ description, projectPath, depth }) => {
     const resolved = resolveProjectPath(projectPath);
     const config = loadConfig();
     const orchestrator = new Orchestrator();
@@ -295,6 +341,7 @@ server.tool(
       projectPath: resolved,
       config,
       requirements: description,
+      depth: (depth as AnalysisDepth) ?? 'standard',
     });
 
     const fc = result.context;
@@ -303,9 +350,22 @@ server.tool(
     if (fc.estimation) {
       const est = fc.estimation;
       lines.push(`**Total**: ${est.totalHours}h`);
-      lines.push(`**Confiança**: ${est.confidence}\n`);
+      lines.push(`**Confiança**: ${est.confidence}`);
+      if (est.storyPoints) lines.push(`**Story Points**: ${est.storyPoints}`);
+      lines.push('');
+
+      if (est.scenarios) {
+        lines.push('## Cenários de Estimativa\n');
+        lines.push('| Cenário | Horas | Dias |');
+        lines.push('|---|---|---|');
+        lines.push(`| Desenvolvimento Humano | ${est.scenarios.human.hours}h | ${est.scenarios.human.days}d |`);
+        lines.push(`| Com GitHub Copilot (-${est.scenarios.withCopilot.gain}) | ${est.scenarios.withCopilot.hours}h | ${est.scenarios.withCopilot.days}d |`);
+        lines.push(`| Abordagem Híbrida (-${est.scenarios.hybrid.gain}) | ${est.scenarios.hybrid.hours}h | ${est.scenarios.hybrid.days}d |`);
+        lines.push('');
+      }
 
       if (est.breakdown.length > 0) {
+        lines.push('## Detalhamento\n');
         lines.push('| Tarefa | Horas | Complexidade |');
         lines.push('|---|---|---|');
         for (const b of est.breakdown) {
@@ -314,15 +374,24 @@ server.tool(
         lines.push('');
       }
 
-      const totalDays = Math.ceil(est.totalHours / 8);
-      lines.push('## Cronograma Sugerido\n');
-      lines.push(`| Fase | Dias |`);
-      lines.push('|---|---|');
-      lines.push(`| Análise | ${Math.ceil(totalDays * 0.15)} |`);
-      lines.push(`| Desenvolvimento | ${Math.ceil(totalDays * 0.50)} |`);
-      lines.push(`| Testes | ${Math.ceil(totalDays * 0.25)} |`);
-      lines.push(`| Deploy | ${Math.ceil(totalDays * 0.10)} |`);
-      lines.push('');
+      if (est.suggestedTimeline && est.suggestedTimeline.length > 0) {
+        lines.push('## Cronograma Sugerido\n');
+        lines.push('| Fase | Dias | Paralelizável |');
+        lines.push('|---|---|---|');
+        for (const tp of est.suggestedTimeline) {
+          lines.push(`| ${tp.phase} | ${tp.days}d | ${tp.parallelizable ? 'Sim' : 'Não'} |`);
+        }
+        lines.push('');
+      }
+
+      if (est.estimationRisks && est.estimationRisks.length > 0) {
+        lines.push('## Riscos da Estimativa\n');
+        for (const r of est.estimationRisks) {
+          const direction = r.impact === 'increase' ? '↑' : '↓';
+          lines.push(`- ${direction} ${r.risk} (fator: ${r.factor}x)`);
+        }
+        lines.push('');
+      }
     } else {
       lines.push('_Não foi possível gerar estimativa._');
     }
@@ -457,6 +526,123 @@ server.tool(
       }
     } else {
       lines.push('_Não foi possível gerar o protótipo._');
+    }
+
+    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+  },
+);
+
+// ── Tool: health_check ───────────────────────────────────────────────────────
+
+server.tool(
+  'health_check',
+  'Verifica o status do servidor MCP, cache e configuração. Útil para diagnóstico.',
+  {},
+  async () => {
+    const config = loadConfig();
+    const cache = Orchestrator.cache;
+    const lines: string[] = ['# Health Check\n'];
+    lines.push(`- **Status**: OK`);
+    lines.push(`- **Modo de execução**: ${config.executionMode ?? 'auto'}`);
+    lines.push(`- **Provider AI**: ${config.ai?.provider ?? 'nenhum'}`);
+    lines.push(`- **Modelo**: ${config.ai?.model ?? 'nenhum'}`);
+    lines.push(`- **Cache ativo**: ${cache.size > 0 ? `Sim (${cache.size} entrada(s))` : 'Não'}`);
+    lines.push(`- **Idioma**: ${config.language ?? 'pt-BR'}`);
+    if (config.estimation) {
+      lines.push('- **Configuração de estimativa**:');
+      lines.push(`  - Focus Factor: ${config.estimation.focusFactor ?? 0.7}`);
+      lines.push(`  - Horas/SP: ${config.estimation.hoursPerStoryPoint ?? 6}`);
+      lines.push(`  - Copilot Gain: ${config.estimation.copilotGain ?? 0.35}`);
+      lines.push(`  - Team Size: ${config.estimation.teamSize ?? 1}`);
+      lines.push(`  - Seniority: ${config.estimation.seniorityLevel ?? 'mid'}`);
+    }
+    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+  },
+);
+
+// ── Tool: invalidate_cache ───────────────────────────────────────────────────
+
+server.tool(
+  'invalidate_cache',
+  'Invalida o cache do repositório para forçar re-análise na próxima execução.',
+  {
+    projectPath: z.string().optional().describe('Caminho do repositório para invalidar. Se omitido, limpa todo o cache.'),
+  },
+  async ({ projectPath }) => {
+    const cache = Orchestrator.cache;
+    if (projectPath) {
+      const resolved = resolveProjectPath(projectPath);
+      cache.invalidate(resolved);
+      return { content: [{ type: 'text' as const, text: `Cache invalidado para: ${resolved}` }] };
+    }
+    cache.invalidateAll();
+    return { content: [{ type: 'text' as const, text: 'Todo o cache foi limpo.' }] };
+  },
+);
+
+// ── Tool: what_if_analysis ───────────────────────────────────────────────────
+
+server.tool(
+  'what_if_analysis',
+  'Executa análise comparativa "e se?" — compara estimativas com diferentes profundidades (quick vs deep) para uma funcionalidade.',
+  {
+    description: z.string().describe('Descrição da funcionalidade'),
+    projectPath: z.string().optional().describe('Caminho do repositório'),
+  },
+  async ({ description, projectPath }) => {
+    const resolved = resolveProjectPath(projectPath);
+    const config = loadConfig();
+
+    // Run quick analysis
+    const quickOrch = new Orchestrator();
+    const quickResult = await quickOrch.run({
+      projectPath: resolved, config, requirements: description, depth: 'quick',
+    });
+
+    // Run standard analysis
+    const stdOrch = new Orchestrator();
+    const stdResult = await stdOrch.run({
+      projectPath: resolved, config, requirements: description, depth: 'standard',
+    });
+
+    const lines: string[] = [`# Análise "E Se?": ${description}\n`];
+    const qEst = quickResult.context.estimation;
+    const sEst = stdResult.context.estimation;
+
+    lines.push('## Comparação\n');
+    lines.push('| Métrica | Quick | Standard |');
+    lines.push('|---|---|---|');
+    lines.push(`| Total Horas | ${qEst?.totalHours ?? '-'}h | ${sEst?.totalHours ?? '-'}h |`);
+    lines.push(`| Story Points | ${qEst?.storyPoints ?? '-'} | ${sEst?.storyPoints ?? '-'} |`);
+    lines.push(`| Confiança | ${qEst?.confidence ?? '-'} | ${sEst?.confidence ?? '-'} |`);
+    lines.push(`| Tarefas | ${qEst?.breakdown.length ?? 0} | ${sEst?.breakdown.length ?? 0} |`);
+    lines.push(`| Duração Pipeline | ${quickResult.durationMs}ms | ${stdResult.durationMs}ms |`);
+    lines.push('');
+
+    if (sEst?.scenarios) {
+      lines.push('## Cenários (Standard)\n');
+      lines.push('| Cenário | Horas | Dias |');
+      lines.push('|---|---|---|');
+      lines.push(`| Humano | ${sEst.scenarios.human.hours}h | ${sEst.scenarios.human.days}d |`);
+      lines.push(`| Copilot | ${sEst.scenarios.withCopilot.hours}h | ${sEst.scenarios.withCopilot.days}d |`);
+      lines.push(`| Híbrido | ${sEst.scenarios.hybrid.hours}h | ${sEst.scenarios.hybrid.days}d |`);
+      lines.push('');
+    }
+
+    const qReq = quickResult.context.requirementsAnalysis;
+    const sReq = stdResult.context.requirementsAnalysis;
+    if (qReq || sReq) {
+      lines.push('## Requisitos Identificados\n');
+      lines.push(`| Tipo | Quick | Standard |`);
+      lines.push('|---|---|---|');
+      lines.push(`| Funcionais | ${qReq?.functionalRequirements.length ?? 0} | ${sReq?.functionalRequirements.length ?? 0} |`);
+      lines.push(`| Não Funcionais | ${qReq?.nonFunctionalRequirements.length ?? 0} | ${sReq?.nonFunctionalRequirements.length ?? 0} |`);
+      lines.push('');
+    }
+
+    if (stdResult.context.coherenceReport) {
+      lines.push(`## Coerência (Standard)\n`);
+      lines.push(`**Score**: ${stdResult.context.coherenceReport.coherenceScore}%\n`);
     }
 
     return { content: [{ type: 'text' as const, text: lines.join('\n') }] };

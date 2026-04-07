@@ -3,9 +3,13 @@ import { Labels } from '../config';
 import {
   AgentRole,
   Estimation,
+  EstimationConfig,
   EstimationItem,
+  EstimationRisk,
+  EstimationScenarios,
   FeatureContext,
   SessionContext,
+  TimelinePhase,
 } from '../types';
 
 /**
@@ -13,6 +17,13 @@ import {
  * component types, integration complexity, framework-specific overhead,
  * database impact, and testing requirements. Produces task-level hours
  * tied to specific components and files rather than generic categories.
+ *
+ * Now supports:
+ * - 3-scenario estimation (human, withCopilot, hybrid)
+ * - Story point conversion (from EstimationConfig.hoursPerStoryPoint)
+ * - Risk identification with multiplicative impact factors
+ * - Timeline phases with parallelizability hints
+ * - Calibration via EstimationConfig from ai-config.json
  */
 export class EstimationAgent extends BaseAgent<FeatureContext, Estimation> {
   readonly role = AgentRole.Estimator;
@@ -28,7 +39,7 @@ export class EstimationAgent extends BaseAgent<FeatureContext, Estimation> {
     middleware: 2, utility: 2,
   };
 
-  protected async run(fc: FeatureContext, _context: SessionContext): Promise<Estimation> {
+  protected async run(fc: FeatureContext, context: SessionContext): Promise<Estimation> {
     const repo = fc.repositoryContext;
     const repoIndex = fc.repoIndex;
     const scope = fc.scopeDefinition;
@@ -36,6 +47,16 @@ export class EstimationAgent extends BaseAgent<FeatureContext, Estimation> {
     const solution = fc.solutionArchitecture;
     const reuse = fc.reuseAnalysis;
     const breakdown: EstimationItem[] = [];
+
+    // ── Load calibration from config ──────────────────────
+    const estConfig: EstimationConfig = context.config.estimation ?? {};
+    const focusFactor = estConfig.focusFactor ?? 0.7;
+    const hoursPerSP = estConfig.hoursPerStoryPoint ?? 6;
+    const copilotGain = estConfig.copilotGain ?? 0.35;
+    const hybridGain = estConfig.hybridGain ?? 0.20;
+    const teamSize = estConfig.teamSize ?? 1;
+    const seniority = estConfig.seniorityLevel ?? 'mid';
+    const seniorityMultiplier = seniority === 'senior' ? 0.8 : seniority === 'junior' ? 1.3 : 1.0;
 
     // ── Context comprehension (scoped to affected area only) ─
     if (repoIndex && scope) {
@@ -216,18 +237,107 @@ export class EstimationAgent extends BaseAgent<FeatureContext, Estimation> {
         : scope?.estimatedComplexity === 'medium' ? 1.1
           : 1.0;
 
-    const totalHours = Math.round(
-      breakdown.reduce((sum, item) => sum + item.hours, 0) * complexityMultiplier * 10,
-    ) / 10;
+    const rawTotal = breakdown.reduce((sum, item) => sum + item.hours, 0) * complexityMultiplier;
+    const totalHours = Math.round(rawTotal * seniorityMultiplier * focusFactor * 10) / 10;
 
     // ── Confidence ────────────────────────────────────────
-    // More data sources = higher confidence
     const dataSources = [repo, repoIndex, scope, impact, solution, reuse].filter(Boolean).length;
     const confidence: Estimation['confidence'] =
       dataSources <= 2 || totalHours > 200 ? 'low'
         : dataSources <= 4 || totalHours > 80 ? 'medium'
           : 'high';
 
-    return { totalHours, breakdown, confidence };
+    // ── Story Points ──────────────────────────────────────
+    const storyPoints = Math.max(1, Math.round(totalHours / hoursPerSP));
+
+    // ── 3-Scenario Estimation ─────────────────────────────
+    const hoursPerDay = 8;
+    const humanHours = totalHours;
+    const copilotHours = Math.round(totalHours * (1 - copilotGain) * 10) / 10;
+    const hybridHours = Math.round(totalHours * (1 - hybridGain) * 10) / 10;
+
+    const toDays = (h: number) => Math.round((h / hoursPerDay / Math.max(1, teamSize)) * 10) / 10;
+
+    const scenarios: EstimationScenarios = {
+      human: { hours: humanHours, days: toDays(humanHours) },
+      withCopilot: {
+        hours: copilotHours,
+        days: toDays(copilotHours),
+        gain: `${Math.round(copilotGain * 100)}%`,
+      },
+      hybrid: {
+        hours: hybridHours,
+        days: toDays(hybridHours),
+        gain: `${Math.round(hybridGain * 100)}%`,
+      },
+    };
+
+    // ── Risk Factors ──────────────────────────────────────
+    const estimationRisks: EstimationRisk[] = this.identifyRisks(fc, totalHours);
+
+    // ── Timeline Phases ───────────────────────────────────
+    const suggestedTimeline: TimelinePhase[] = this.buildTimeline(breakdown, toDays);
+
+    return {
+      totalHours, breakdown, confidence,
+      scenarios, storyPoints, estimationRisks, suggestedTimeline,
+    };
+  }
+
+  // ── Risk identification ─────────────────────────────────
+
+  private identifyRisks(fc: FeatureContext, totalHours: number): EstimationRisk[] {
+    const risks: EstimationRisk[] = [];
+
+    if (fc.impactAnalysis?.riskLevel === 'high') {
+      risks.push({ risk: 'Alto risco de impacto no sistema existente — pode necessitar refatoração adicional', impact: 'increase', factor: 1.2 });
+    }
+    if (fc.impactAnalysis?.migrationNotes && fc.impactAnalysis.migrationNotes.length > 0) {
+      risks.push({ risk: `${fc.impactAnalysis.migrationNotes.length} migração(ões) de banco de dados necessária(s)`, impact: 'increase', factor: 1.15 });
+    }
+    if (totalHours > 100) {
+      risks.push({ risk: 'Estimativa acima de 100h — maior incerteza por escopo grande', impact: 'increase', factor: 1.1 });
+    }
+    if (fc.reuseAnalysis && fc.reuseAnalysis.candidates.filter((c) => c.relevance === 'high').length >= 3) {
+      risks.push({ risk: 'Alta reutilização de componentes (3+ candidatos alta relevância)', impact: 'decrease', factor: 0.9 });
+    }
+    if (fc.repositoryContext?.architecturePattern.evidence && fc.repositoryContext.architecturePattern.evidence.length < 3) {
+      risks.push({ risk: 'Arquitetura com poucos indícios — pode necessitar decisões complementares', impact: 'increase', factor: 1.1 });
+    }
+
+    return risks;
+  }
+
+  // ── Timeline generation ─────────────────────────────────
+
+  private buildTimeline(breakdown: EstimationItem[], toDays: (h: number) => number): TimelinePhase[] {
+    const phases: TimelinePhase[] = [];
+
+    // Group tasks by category
+    const analysis = breakdown.filter((b) => /compreensão|familiarização/i.test(b.task));
+    const impl = breakdown.filter((b) => /implementar|modificar|estender/i.test(b.task));
+    const integration = breakdown.filter((b) => /integração|fluxo|wiring/i.test(b.task));
+    const testing = breakdown.filter((b) => /test|verificação|revisão|segurança/i.test(b.task));
+    const dbTasks = breakdown.filter((b) => /banco|migração|migration|db/i.test(b.task));
+
+    const sumHours = (items: EstimationItem[]) => items.reduce((s, i) => s + i.hours, 0);
+
+    if (analysis.length > 0) {
+      phases.push({ phase: 'Análise e Compreensão', days: toDays(sumHours(analysis)), parallelizable: false });
+    }
+    if (dbTasks.length > 0) {
+      phases.push({ phase: 'Preparação de Banco de Dados', days: toDays(sumHours(dbTasks)), parallelizable: true });
+    }
+    if (impl.length > 0) {
+      phases.push({ phase: 'Implementação', days: toDays(sumHours(impl)), parallelizable: true });
+    }
+    if (integration.length > 0) {
+      phases.push({ phase: 'Integração', days: toDays(sumHours(integration)), parallelizable: false });
+    }
+    if (testing.length > 0) {
+      phases.push({ phase: 'Testes e Revisão', days: toDays(sumHours(testing)), parallelizable: true });
+    }
+
+    return phases;
   }
 }

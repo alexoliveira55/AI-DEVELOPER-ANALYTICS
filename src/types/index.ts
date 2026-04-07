@@ -70,6 +70,17 @@ export interface AppConfig {
   database?: DatabaseConfig;
   executionMode?: string;
   language?: string;
+  estimation?: EstimationConfig;
+}
+
+/** Estimation calibration settings from ai-config.json. */
+export interface EstimationConfig {
+  focusFactor?: number;
+  hoursPerStoryPoint?: number;
+  copilotGain?: number;
+  hybridGain?: number;
+  teamSize?: number;
+  seniorityLevel?: 'junior' | 'mid' | 'senior';
 }
 
 export interface AiProviderConfig {
@@ -137,12 +148,36 @@ export interface Estimation {
   totalHours: number;
   breakdown: EstimationItem[];
   confidence: 'low' | 'medium' | 'high';
+  scenarios?: EstimationScenarios;
+  storyPoints?: number;
+  estimationRisks?: EstimationRisk[];
+  suggestedTimeline?: TimelinePhase[];
+}
+
+/** Estimation across different development modes. */
+export interface EstimationScenarios {
+  human: { hours: number; days: number };
+  withCopilot: { hours: number; days: number; gain: string };
+  hybrid: { hours: number; days: number; gain: string };
+}
+
+export interface EstimationRisk {
+  risk: string;
+  impact: 'increase' | 'decrease';
+  factor: number;
+}
+
+export interface TimelinePhase {
+  phase: string;
+  days: number;
+  parallelizable: boolean;
 }
 
 export interface EstimationItem {
   task: string;
   hours: number;
   complexity: 'low' | 'medium' | 'high';
+  tracingIds?: string[];
 }
 
 // ── Requirements Analysis ────────────────────────────────────────────────────
@@ -159,6 +194,9 @@ export interface Requirement {
   description: string;
   priority: 'must' | 'should' | 'could';
   category: string;
+  acceptanceCriteria?: string[];
+  relatedComponents?: string[];
+  source?: 'explicit' | 'inferred' | 'llm';
 }
 
 // ── Scope Definition ─────────────────────────────────────────────────────────
@@ -175,6 +213,7 @@ export interface ScopeItem {
   area: string;
   description: string;
   type: 'new' | 'modification' | 'integration';
+  tracingIds?: string[];
 }
 
 // ── Reuse Analysis ───────────────────────────────────────────────────────────
@@ -304,6 +343,7 @@ export interface FeatureContext {
   flowcharts?: FlowchartOutput[];
   documentationPackage?: DocumentationPackage;
   richPrototype?: RichPrototypeOutput;
+  coherenceReport?: CoherenceReport;
 }
 
 // ── Git Analysis ─────────────────────────────────────────────────────────────
@@ -418,4 +458,20 @@ export interface PipelineResult {
   warnings: string[];
   durationMs: number;
   context: FeatureContext;
+}
+
+// ── Analysis Depth ───────────────────────────────────────────────────────────
+
+/** Controls how many pipeline steps are executed. */
+export type AnalysisDepth = 'quick' | 'standard' | 'deep';
+
+// ── Coherence Report ─────────────────────────────────────────────────────────
+
+export interface CoherenceReport {
+  uncoveredRequirements: string[];
+  scopeWithoutRequirement: string[];
+  estimationGaps: string[];
+  riskMismatch: string[];
+  suggestions: string[];
+  coherenceScore: number;
 }

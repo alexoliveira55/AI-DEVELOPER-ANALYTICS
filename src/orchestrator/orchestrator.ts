@@ -28,10 +28,12 @@ import {
   PythonSpecialistAgent,
   WebSpecialistAgent,
 } from '../agents';
-import { Logger, ModeManager } from '../core';
+import { Logger, ModeManager, RepositoryContextCache } from '../core';
 import { LanguageSpecialistAgent } from '../agents/base-language-specialist';
 import {
+  AnalysisDepth,
   AppConfig,
+  CoherenceReport,
   ExecutionMode,
   FeatureContext,
   LanguageSpecificAnalysis,
@@ -53,14 +55,23 @@ export interface OrchestratorOptions {
   enableSpecialists?: boolean;
   enableFlowcharts?: boolean;
   enableExecutiveDocs?: boolean;
+  depth?: AnalysisDepth;
 }
 
 /** The orchestrator returns a PipelineResult envelope. */
 export type OrchestratorResult = PipelineResult;
 
+/** Shared in-memory cache across Orchestrator instances (persists across MCP calls). */
+const globalCache = new RepositoryContextCache();
+
 /** Coordinates the full 18-agent pipeline, passing a shared FeatureContext between agents. */
 export class Orchestrator {
   private readonly logger = Logger.child('Orchestrator');
+
+  /** Expose the shared cache for external access (e.g. MCP resources). */
+  static get cache(): RepositoryContextCache {
+    return globalCache;
+  }
 
   /**
    * Run a single pipeline step with prerequisite checking, timing, and error capture.
@@ -132,6 +143,7 @@ export class Orchestrator {
     const {
       projectPath, config, requirements, generatePrototype, mode,
       attachPaths, enableSpecialists, enableFlowcharts, enableExecutiveDocs,
+      depth = 'standard',
     } = options;
     const startedAt = new Date();
     const TOTAL_STEPS = 18;
@@ -149,50 +161,81 @@ export class Orchestrator {
     const ctx: PipelineContext = { steps: [], errors: [], warnings: [] };
 
     Logger.setSessionId(session.sessionId);
-    this.logger.info(`Pipeline started for ${projectPath}`);
+    this.logger.info(`Pipeline started for ${projectPath} (depth: ${depth})`);
     this.logger.info(`Execution mode: ${effectiveMode}`);
 
-    // ── 1. Repository Indexer — CRITICAL: abort pipeline on failure ───────
-    const indexData = await this.executeStep(`Step 1/${TOTAL_STEPS}`, 'Repository Indexer', () => {
-      const agent = new RepositoryIndexerAgent();
-      return agent.execute(projectPath, session);
-    }, ctx);
+    // ── Try cache for Steps 1-4 ──────────────────────────────────────────
+    const cached = globalCache.get(projectPath);
+    if (cached) {
+      this.logger.info('Using cached repository context');
+      fc.repositoryContext = cached.repositoryContext;
+      fc.repoIndex = cached.repoIndex;
+      fc.gitAnalysis = cached.gitAnalysis as FeatureContext['gitAnalysis'];
+      fc.projectDiscovery = cached.projectDiscovery as FeatureContext['projectDiscovery'];
+      fc.databaseSummary = cached.databaseSummary;
 
-    if (!indexData) {
-      const completedAt = new Date();
-      this.logger.error('Pipeline aborted: Repository indexing failed');
-      return {
-        success: false,
-        sessionId: session.sessionId,
-        featureName: requirements ?? '',
-        executionMode: ModeManager.getMode(),
-        steps: ctx.steps,
-        errors: ctx.errors,
-        warnings: ctx.warnings,
-        durationMs: completedAt.getTime() - startedAt.getTime(),
-        context: fc,
-      };
+      // Record cache hits as skipped steps
+      for (const [step, agent] of [
+        ['1', 'Repository Indexer'], ['2', 'Database Reader'],
+        ['3', 'Git Analyzer'], ['4', 'Project Discovery'],
+      ]) {
+        ctx.steps.push({ stepName: `Step ${step}/${TOTAL_STEPS}`, agent, success: true, skipped: false, durationMs: 0 });
+      }
+    } else {
+      // ── 1. Repository Indexer — CRITICAL: abort pipeline on failure ─────
+      const indexData = await this.executeStep(`Step 1/${TOTAL_STEPS}`, 'Repository Indexer', () => {
+        const agent = new RepositoryIndexerAgent();
+        return agent.execute(projectPath, session);
+      }, ctx);
+
+      if (!indexData) {
+        const completedAt = new Date();
+        this.logger.error('Pipeline aborted: Repository indexing failed');
+        return {
+          success: false,
+          sessionId: session.sessionId,
+          featureName: requirements ?? '',
+          executionMode: ModeManager.getMode(),
+          steps: ctx.steps,
+          errors: ctx.errors,
+          warnings: ctx.warnings,
+          durationMs: completedAt.getTime() - startedAt.getTime(),
+          context: fc,
+        };
+      }
+      fc.repositoryContext = indexData;
+      fc.repoIndex = this.buildRepoIndex(fc);
+
+      // ── Steps 2-4: Run in parallel ─────────────────────────────────────
+      const [dbResult, gitResult, discoveryResult] = await Promise.allSettled([
+        this.executeStep(`Step 2/${TOTAL_STEPS}`, 'Database Reader', () => {
+          const agent = new DatabaseReaderAgent();
+          return agent.execute(undefined, session);
+        }, ctx),
+        this.executeStep(`Step 3/${TOTAL_STEPS}`, 'Git Analyzer', () => {
+          const agent = new GitAnalyzerAgent();
+          return agent.execute(projectPath, session);
+        }, ctx),
+        this.executeStep(`Step 4/${TOTAL_STEPS}`, 'Project Discovery', () => {
+          const agent = new ProjectDiscoveryAgent();
+          return agent.execute(projectPath, session);
+        }, ctx),
+      ]);
+
+      fc.databaseSummary = dbResult.status === 'fulfilled' ? dbResult.value ?? undefined : undefined;
+      fc.gitAnalysis = gitResult.status === 'fulfilled' ? gitResult.value ?? undefined : undefined;
+      fc.projectDiscovery = discoveryResult.status === 'fulfilled' ? discoveryResult.value ?? undefined : undefined;
+
+      // ── Populate cache ─────────────────────────────────────────────────
+      globalCache.set(projectPath, {
+        repositoryContext: fc.repositoryContext,
+        repoIndex: fc.repoIndex!,
+        gitAnalysis: fc.gitAnalysis,
+        projectDiscovery: fc.projectDiscovery,
+        databaseSummary: fc.databaseSummary,
+        projectPath,
+      });
     }
-    fc.repositoryContext = indexData;
-    fc.repoIndex = this.buildRepoIndex(fc);
-
-    // ── 2. Database Reader — warning on failure ──────────────────────────
-    fc.databaseSummary = await this.executeStep(`Step 2/${TOTAL_STEPS}`, 'Database Reader', () => {
-      const agent = new DatabaseReaderAgent();
-      return agent.execute(undefined, session);
-    }, ctx) ?? undefined;
-
-    // ── 3. Git Analyzer — warning on failure ─────────────────────────────
-    fc.gitAnalysis = await this.executeStep(`Step 3/${TOTAL_STEPS}`, 'Git Analyzer', () => {
-      const agent = new GitAnalyzerAgent();
-      return agent.execute(projectPath, session);
-    }, ctx) ?? undefined;
-
-    // ── 4. Project Discovery — warning on failure ────────────────────────
-    fc.projectDiscovery = await this.executeStep(`Step 4/${TOTAL_STEPS}`, 'Project Discovery', () => {
-      const agent = new ProjectDiscoveryAgent();
-      return agent.execute(projectPath, session);
-    }, ctx) ?? undefined;
 
     // ── 5. Attachment Reader — conditional on attachPaths ────────────────
     if (attachPaths && attachPaths.length > 0) {
@@ -203,6 +246,10 @@ export class Orchestrator {
     } else {
       ctx.steps.push({ stepName: `Step 5/${TOTAL_STEPS}`, agent: 'Attachment Reader', success: true, skipped: true, durationMs: 0 });
     }
+
+    // ── Quick depth: only core analysis (Steps 6, 7, 12) ────────────────
+    const isQuick = depth === 'quick';
+    const isDeep = depth === 'deep';
 
     // ── 6. Requirements — warning on failure, dependents will skip ───────
     fc.requirementsAnalysis = await this.executeStep(`Step 6/${TOTAL_STEPS}`, 'Requirements Analyst', () => {
@@ -216,20 +263,26 @@ export class Orchestrator {
       return agent.execute(fc, session);
     }, ctx, [fc.requirementsAnalysis]);
 
-    // ── 8. Reuse — warning, requires requirements ────────────────────────
-    fc.reuseAnalysis = await this.executeStep(`Step 8/${TOTAL_STEPS}`, 'Reuse Analyst', () => {
-      const agent = new ReuseAgent();
-      return agent.execute(fc, session);
-    }, ctx, [fc.requirementsAnalysis]);
+    if (!isQuick) {
+      // ── 8. Reuse — warning, requires requirements ──────────────────────
+      fc.reuseAnalysis = await this.executeStep(`Step 8/${TOTAL_STEPS}`, 'Reuse Analyst', () => {
+        const agent = new ReuseAgent();
+        return agent.execute(fc, session);
+      }, ctx, [fc.requirementsAnalysis]);
 
-    // ── 9. Solution — warning, requires requirements + scope + reuse ─────
-    fc.solutionArchitecture = await this.executeStep(`Step 9/${TOTAL_STEPS}`, 'Solution Architect', () => {
-      const agent = new SolutionArchitectAgent();
-      return agent.execute(fc, session);
-    }, ctx, [fc.requirementsAnalysis, fc.scopeDefinition, fc.reuseAnalysis]);
+      // ── 9. Solution — warning, requires requirements + scope + reuse ───
+      fc.solutionArchitecture = await this.executeStep(`Step 9/${TOTAL_STEPS}`, 'Solution Architect', () => {
+        const agent = new SolutionArchitectAgent();
+        return agent.execute(fc, session);
+      }, ctx, [fc.requirementsAnalysis, fc.scopeDefinition, fc.reuseAnalysis]);
+    } else {
+      for (const [step, agent] of [['8', 'Reuse Analyst'], ['9', 'Solution Architect']]) {
+        ctx.steps.push({ stepName: `Step ${step}/${TOTAL_STEPS}`, agent, success: true, skipped: true, durationMs: 0 });
+      }
+    }
 
-    // ── 10. Language Specialists — conditional on enableSpecialists ──────
-    if (enableSpecialists) {
+    // ── 10. Language Specialists — only in deep mode ─────────────────────
+    if (isDeep && enableSpecialists) {
       const specialists: LanguageSpecialistAgent[] = [
         new FlutterDartSpecialistAgent(),
         new CSharpDotNetSpecialistAgent(),
@@ -255,74 +308,81 @@ export class Orchestrator {
       ctx.steps.push({ stepName: `Step 10/${TOTAL_STEPS}`, agent: 'Language Specialists', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 11. Impact — warning, requires solution + scope ──────────────────
-    fc.impactAnalysis = await this.executeStep(`Step 11/${TOTAL_STEPS}`, 'Impact Analyst', () => {
-      const agent = new ImpactAnalysisAgent();
-      return agent.execute(fc, session);
-    }, ctx, [fc.solutionArchitecture, fc.scopeDefinition]);
+    if (!isQuick) {
+      // ── 11. Impact — warning, requires solution + scope ────────────────
+      fc.impactAnalysis = await this.executeStep(`Step 11/${TOTAL_STEPS}`, 'Impact Analyst', () => {
+        const agent = new ImpactAnalysisAgent();
+        return agent.execute(fc, session);
+      }, ctx, [fc.solutionArchitecture, fc.scopeDefinition]);
+    } else {
+      ctx.steps.push({ stepName: `Step 11/${TOTAL_STEPS}`, agent: 'Impact Analyst', success: true, skipped: true, durationMs: 0 });
+    }
 
-    // ── 12. Estimation — warning ─────────────────────────────────────────
+    // ── 12. Estimation — always run (core deliverable) ───────────────────
     fc.estimation = await this.executeStep(`Step 12/${TOTAL_STEPS}`, 'Estimation Agent', () => {
       const agent = new EstimationAgent();
       return agent.execute(fc, session);
     }, ctx);
 
-    // ── 13. Flowchart Generator — conditional on enableFlowcharts ────────
-    if (enableFlowcharts) {
-      fc.flowcharts = await this.executeStep(`Step 13/${TOTAL_STEPS}`, 'Flowchart Generator', () => {
-        const agent = new FlowchartGeneratorAgent();
+    if (!isQuick) {
+      // ── 13. Flowchart Generator — conditional on enableFlowcharts ──────
+      if (enableFlowcharts) {
+        fc.flowcharts = await this.executeStep(`Step 13/${TOTAL_STEPS}`, 'Flowchart Generator', () => {
+          const agent = new FlowchartGeneratorAgent();
+          return agent.execute(fc, session);
+        }, ctx, [fc.solutionArchitecture]) ?? undefined;
+      } else {
+        ctx.steps.push({ stepName: `Step 13/${TOTAL_STEPS}`, agent: 'Flowchart Generator', success: true, skipped: true, durationMs: 0 });
+      }
+
+      // ── 14. Documentation — warning ────────────────────────────────────
+      fc.documentation = await this.executeStep(`Step 14/${TOTAL_STEPS}`, 'Documentation Generator', () => {
+        const agent = new DocumentationGeneratorAgent();
         return agent.execute(fc, session);
-      }, ctx, [fc.solutionArchitecture]) ?? undefined;
+      }, ctx);
     } else {
       ctx.steps.push({ stepName: `Step 13/${TOTAL_STEPS}`, agent: 'Flowchart Generator', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 14/${TOTAL_STEPS}`, agent: 'Documentation Generator', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 14. Documentation — warning ──────────────────────────────────────
-    fc.documentation = await this.executeStep(`Step 14/${TOTAL_STEPS}`, 'Documentation Generator', () => {
-      const agent = new DocumentationGeneratorAgent();
-      return agent.execute(fc, session);
-    }, ctx);
-
-    // ── 15. Technical Writer — conditional on enableExecutiveDocs ─────────
-    if (enableExecutiveDocs) {
+    // ── 15-16: Executive docs — only in deep or standard+enabled ─────────
+    if (!isQuick && enableExecutiveDocs) {
       fc.documentationPackage = fc.documentationPackage ?? { technical: '', executive: '', summary: '', flowcharts: [] };
       const techDoc = await this.executeStep(`Step 15/${TOTAL_STEPS}`, 'Technical Writer', () => {
         const agent = new TechnicalWriterAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
       if (techDoc && fc.documentationPackage) fc.documentationPackage.technical = techDoc;
-    } else {
-      ctx.steps.push({ stepName: `Step 15/${TOTAL_STEPS}`, agent: 'Technical Writer', success: true, skipped: true, durationMs: 0 });
-    }
 
-    // ── 16. Executive Writer — conditional on enableExecutiveDocs ─────────
-    if (enableExecutiveDocs) {
-      fc.documentationPackage = fc.documentationPackage ?? { technical: '', executive: '', summary: '', flowcharts: [] };
       const execDoc = await this.executeStep(`Step 16/${TOTAL_STEPS}`, 'Executive Writer', () => {
         const agent = new ExecutiveWriterAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
       if (execDoc && fc.documentationPackage) fc.documentationPackage.executive = execDoc;
     } else {
+      ctx.steps.push({ stepName: `Step 15/${TOTAL_STEPS}`, agent: 'Technical Writer', success: true, skipped: true, durationMs: 0 });
       ctx.steps.push({ stepName: `Step 16/${TOTAL_STEPS}`, agent: 'Executive Writer', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 17. Summary Generator ────────────────────────────────────────────
-    fc.documentationPackage = fc.documentationPackage ?? { technical: '', executive: '', summary: '', flowcharts: [] };
-    const summary = await this.executeStep(`Step 17/${TOTAL_STEPS}`, 'Summary Generator', () => {
-      const agent = new SummaryGeneratorAgent();
-      return agent.execute(fc, session);
-    }, ctx) ?? undefined;
-    if (summary && fc.documentationPackage) fc.documentationPackage.summary = summary;
+    if (!isQuick) {
+      // ── 17. Summary Generator ──────────────────────────────────────────
+      fc.documentationPackage = fc.documentationPackage ?? { technical: '', executive: '', summary: '', flowcharts: [] };
+      const summary = await this.executeStep(`Step 17/${TOTAL_STEPS}`, 'Summary Generator', () => {
+        const agent = new SummaryGeneratorAgent();
+        return agent.execute(fc, session);
+      }, ctx) ?? undefined;
+      if (summary && fc.documentationPackage) fc.documentationPackage.summary = summary;
+    } else {
+      ctx.steps.push({ stepName: `Step 17/${TOTAL_STEPS}`, agent: 'Summary Generator', success: true, skipped: true, durationMs: 0 });
+    }
 
-    // ── 18. Prototype / Rich Prototype ───────────────────────────────────
-    if (generatePrototype && requirements) {
+    // ── 18. Prototype / Rich Prototype — only standard/deep ──────────────
+    if (!isQuick && generatePrototype && requirements) {
       fc.richPrototype = await this.executeStep(`Step 18/${TOTAL_STEPS}`, 'Rich Prototype Generator', () => {
         const agent = new RichPrototypeGeneratorAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
 
-      // Also run legacy prototype as fallback
       if (!fc.richPrototype) {
         fc.prototype = await this.executeStep(`Step 18/${TOTAL_STEPS}`, 'Prototype Generator', () => {
           const agent = new PrototypeGeneratorAgent();
@@ -331,6 +391,11 @@ export class Orchestrator {
       }
     } else {
       ctx.steps.push({ stepName: `Step 18/${TOTAL_STEPS}`, agent: 'Rich Prototype Generator', success: true, skipped: true, durationMs: 0 });
+    }
+
+    // ── Coherence validation (standard + deep) ───────────────────────────
+    if (!isQuick && fc.requirementsAnalysis && fc.scopeDefinition) {
+      fc.coherenceReport = this.validateCoherence(fc);
     }
 
     const completedAt = new Date();
@@ -355,6 +420,93 @@ export class Orchestrator {
       durationMs: totalMs,
       context: fc,
     };
+  }
+
+  // ── Coherence Validation ───────────────────────────────────────────────
+
+  private validateCoherence(fc: FeatureContext): CoherenceReport {
+    const req = fc.requirementsAnalysis!;
+    const scope = fc.scopeDefinition!;
+    const estimation = fc.estimation;
+    const impact = fc.impactAnalysis;
+
+    const uncoveredRequirements: string[] = [];
+    const scopeWithoutRequirement: string[] = [];
+    const estimationGaps: string[] = [];
+    const riskMismatch: string[] = [];
+    const suggestions: string[] = [];
+
+    // Check if all functional requirements have scope items
+    const allReqs = [...req.functionalRequirements, ...req.nonFunctionalRequirements];
+    const scopeDescriptions = scope.inScope.map((s) => s.description.toLowerCase()).join(' ');
+    const scopeAreas = scope.inScope.map((s) => s.area.toLowerCase()).join(' ');
+
+    for (const r of allReqs) {
+      const keywords = r.description.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+      const covered = keywords.some((k) => scopeDescriptions.includes(k) || scopeAreas.includes(k));
+      if (!covered && r.priority === 'must') {
+        uncoveredRequirements.push(`${r.id}: ${r.description}`);
+      }
+    }
+
+    // Check scope items without matching requirements
+    for (const s of scope.inScope.filter((s) => s.type === 'new')) {
+      const areaLower = s.area.toLowerCase();
+      const matchesAnyReq = allReqs.some((r) =>
+        r.description.toLowerCase().includes(areaLower.replace(/-module$/, '')),
+      );
+      if (!matchesAnyReq) {
+        scopeWithoutRequirement.push(`${s.area}: ${s.description}`);
+      }
+    }
+
+    // Check estimation gaps
+    if (estimation && fc.solutionArchitecture) {
+      const estimatedComponents = new Set(
+        estimation.breakdown.map((b) => b.task.toLowerCase()),
+      );
+      for (const comp of fc.solutionArchitecture.proposedComponents.filter((c) => c.isNew)) {
+        const compLower = comp.name.toLowerCase();
+        const hasEstimation = [...estimatedComponents].some((e) => e.includes(compLower));
+        if (!hasEstimation) {
+          estimationGaps.push(`${comp.name} (${comp.type}) sem estimativa`);
+        }
+      }
+    }
+
+    // Check risk ↔ estimation alignment
+    if (impact && estimation) {
+      if (impact.riskLevel === 'high' && estimation.confidence === 'high') {
+        riskMismatch.push('Risco alto com confiança alta na estimativa — considerar buffer adicional');
+      }
+      if (impact.migrationNotes.length > 0 && !estimation.breakdown.some((b) =>
+        b.task.toLowerCase().includes('migra'))) {
+        riskMismatch.push('Migrações identificadas mas não estimadas');
+      }
+    }
+
+    // Generate suggestions
+    if (uncoveredRequirements.length > 0) {
+      suggestions.push(`Adicionar cobertura de escopo para ${uncoveredRequirements.length} requisito(s) sem cobertura`);
+    }
+    if (scopeWithoutRequirement.length > 0) {
+      suggestions.push(`Revisar ${scopeWithoutRequirement.length} item(ns) de escopo sem requisito justificador`);
+    }
+    if (estimationGaps.length > 0) {
+      suggestions.push(`Incluir estimativa para ${estimationGaps.length} componente(s) não estimado(s)`);
+    }
+    if (riskMismatch.length > 0) {
+      suggestions.push(`Alinhar avaliação de risco com estimativa: ${riskMismatch.join('; ')}`);
+    }
+
+    const total = uncoveredRequirements.length + scopeWithoutRequirement.length +
+      estimationGaps.length + riskMismatch.length;
+    const maxPenalty = allReqs.length + scope.inScope.length;
+    const coherenceScore = maxPenalty > 0
+      ? Math.max(0, Math.round((1 - total / maxPenalty) * 100))
+      : 100;
+
+    return { uncoveredRequirements, scopeWithoutRequirement, estimationGaps, riskMismatch, suggestions, coherenceScore };
   }
 
   private buildRepoIndex(fc: FeatureContext): RepoIndex {

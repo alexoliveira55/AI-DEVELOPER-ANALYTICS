@@ -43,7 +43,7 @@ export function loadConfig(overridePath?: string): AppConfig {
 }
 
 function findConfigFile(): string | undefined {
-  const candidates = ['ai-architect.yaml', 'ai-architect.yml', 'ai-architect.json'];
+  const candidates = ['ai-architect.yaml', 'ai-architect.yml', 'ai-architect.json', 'ai-config.json'];
   return candidates.find((f) => fs.existsSync(f));
 }
 

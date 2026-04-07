@@ -1,4 +1,4 @@
-import { BaseAgent } from '../core';
+import { BaseAgent, TextAnalyzer } from '../core';
 import { Labels } from '../config';
 import { AgentRole, FeatureContext, Requirement, RequirementsAnalysis, SessionContext } from '../types';
 import { RepositoryContext } from '../indexer';
@@ -8,10 +8,12 @@ import { DatabaseSummary } from '../database';
  * Parses raw requirement text into structured functional / non-functional
  * requirements. Cross-references the repository context and database schema
  * to infer implied requirements, constraints, and assumptions automatically.
+ * Uses TextAnalyzer for semantic keyword extraction and category classification.
  */
 export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAnalysis> {
   readonly role = AgentRole.Requirements;
   readonly name = 'Requirements Analyst';
+  private readonly analyzer = new TextAnalyzer();
 
   protected async run(fc: FeatureContext, _context: SessionContext): Promise<RequirementsAnalysis> {
     const rawRequirements = fc.rawRequirements ?? '';
@@ -35,32 +37,44 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
       const cleaned = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '');
       const lower = cleaned.toLowerCase();
 
-      if (lower.startsWith('assume') || lower.startsWith('assumption')) {
+      if (lower.startsWith('assume') || lower.startsWith('assumption') ||
+          lower.startsWith('premissa')) {
         assumptions.push(cleaned);
         continue;
       }
-      if (lower.startsWith('constraint') || lower.startsWith('limitation')) {
+      if (lower.startsWith('constraint') || lower.startsWith('limitation') ||
+          lower.startsWith('restrição') || lower.startsWith('restricao') || lower.startsWith('limitação')) {
         constraints.push(cleaned);
         continue;
       }
 
-      const priority = this.detectPriority(lower);
-      const category = this.detectCategory(lower);
+      const priority = this.analyzer.detectPriority(lower);
+      const { category } = this.analyzer.classifyCategory(lower);
+
+      const req: Requirement = {
+        id: '', description: cleaned, priority, category, source: 'explicit',
+        acceptanceCriteria: this.generateAcceptanceCriteria(cleaned, category),
+      };
 
       if (this.isNonFunctional(lower)) {
-        nonFunctional.push({ id: `NFR-${counter++}`, description: cleaned, priority, category });
+        req.id = `NFR-${counter++}`;
+        nonFunctional.push(req);
       } else {
-        functional.push({ id: `FR-${counter++}`, description: cleaned, priority, category });
+        req.id = `FR-${counter++}`;
+        functional.push(req);
       }
     }
 
     // Treat the entire text as a single requirement when nothing was parsed
     if (functional.length === 0 && nonFunctional.length === 0) {
+      const { category } = this.analyzer.classifyCategory(rawRequirements);
       functional.push({
         id: `FR-${counter++}`,
         description: rawRequirements.trim(),
         priority: 'must',
-        category: 'general',
+        category,
+        source: 'explicit',
+        acceptanceCriteria: this.generateAcceptanceCriteria(rawRequirements.trim(), category),
       });
     }
 
@@ -85,7 +99,81 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
       this.deriveConstraints(repo, constraints);
     }
 
+    // ── Populate relatedComponents using semantic matching ──
+    if (repo) {
+      this.enrichRelatedComponents(repo, [...functional, ...nonFunctional]);
+    }
+
     return { functionalRequirements: functional, nonFunctionalRequirements: nonFunctional, assumptions, constraints };
+  }
+
+  // ── Acceptance criteria generation ───────────────────────
+
+  private generateAcceptanceCriteria(description: string, category: string): string[] {
+    const criteria: string[] = [];
+    const lower = description.toLowerCase();
+    const normalized = this.analyzer.removeAccents(lower);
+
+    // Category-specific criteria
+    if (category === 'data') {
+      if (/cadastr|creat|criar|register|registr/i.test(normalized)) {
+        criteria.push('Dado que os dados obrigatórios são preenchidos, o registro deve ser criado com sucesso');
+        criteria.push('Dado que dados inválidos são enviados, o sistema deve retornar mensagem de erro com os campos incorretos');
+      }
+      if (/list|listar|consultar|buscar|search/i.test(normalized)) {
+        criteria.push('A listagem deve retornar os registros com paginação');
+        criteria.push('A busca por filtros deve retornar apenas registros correspondentes');
+      }
+      if (/editar|updat|atualizar|alter/i.test(normalized)) {
+        criteria.push('O registro deve ser atualizado mantendo campos não alterados inalterados');
+      }
+      if (/exclu|delet|remov/i.test(normalized)) {
+        criteria.push('Ao excluir, o sistema deve solicitar confirmação antes de efetivar a remoção');
+      }
+    }
+    if (category === 'api') {
+      criteria.push('O endpoint deve retornar status HTTP correto para cada cenário (200, 201, 400, 404, 500)');
+      criteria.push('A resposta deve seguir o formato JSON padrão documentado');
+    }
+    if (category === 'security') {
+      criteria.push('Apenas usuários autenticados com permissão adequada podem acessar a funcionalidade');
+      criteria.push('Tentativas de acesso não autorizado devem ser registradas em log de auditoria');
+    }
+    if (category === 'ui') {
+      criteria.push('A interface deve ser responsiva e funcionar em dispositivos móveis');
+      criteria.push('Mensagens de feedback devem ser exibidas ao usuário após cada operação');
+    }
+
+    // Generic criteria if none were generated
+    if (criteria.length === 0) {
+      criteria.push('A funcionalidade deve ser implementada conforme a descrição do requisito');
+      criteria.push('Testes automatizados devem cobrir os cenários principais');
+    }
+
+    return criteria;
+  }
+
+  // ── Related component enrichment ─────────────────────────
+
+  private enrichRelatedComponents(repo: RepositoryContext, allReqs: Requirement[]): void {
+    const allComponents = [
+      ...repo.services.map((s) => ({ name: s.name, path: s.filePath })),
+      ...repo.controllers.map((c) => ({ name: c.name, path: c.filePath })),
+      ...repo.reusableComponents.map((c) => ({ name: c.name, path: c.filePath })),
+    ];
+
+    for (const req of allReqs) {
+      const related: string[] = [];
+      for (const comp of allComponents) {
+        const score = this.analyzer.matchScore(req.description, comp.name);
+        if (score >= 0.3) {
+          related.push(comp.name);
+        }
+      }
+      if (related.length > 0) {
+        req.relatedComponents = related.slice(0, 10);
+      }
+    }
   }
 
   // ── Repo-context inference ───────────────────────────────
@@ -99,12 +187,16 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
   ): void {
     let id = startId;
     const rawLower = raw.toLowerCase();
+    const rawNorm = this.analyzer.removeAccents(rawLower);
     const existingDescs = new Set(
       [...functional, ...nonFunctional].map((r) => r.description.toLowerCase()),
     );
     const add = (list: Requirement[], desc: string, priority: Requirement['priority'], category: string) => {
       if (!existingDescs.has(desc.toLowerCase())) {
-        list.push({ id: list === functional ? `FR-${id++}` : `NFR-${id++}`, description: desc, priority, category });
+        list.push({
+          id: list === functional ? `FR-${id++}` : `NFR-${id++}`,
+          description: desc, priority, category, source: 'inferred',
+        });
         existingDescs.add(desc.toLowerCase());
       }
     };
@@ -115,13 +207,13 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
       ...repo.reusableComponents.filter((c) => c.category === 'guard' || c.category === 'middleware').map((c) => c.name),
     ].some((n) => /auth|login|jwt|session|token|permission|role/i.test(n));
 
-    if (hasAuth && /\b(crud|cadastro|register|create|user|usuario|client|cliente|account|conta)\b/i.test(rawLower)) {
+    if (hasAuth && /\b(crud|cadastro|register|create|user|usuario|client|cliente|account|conta)\b/i.test(rawNorm)) {
       add(nonFunctional, Labels.requirements.enforceAuth, 'must', 'security');
       add(nonFunctional, Labels.requirements.validatePermissions, 'must', 'security');
     }
 
     // If repo has existing API endpoints, imply API consistency requirements
-    if (repo.apiEndpoints.length > 0 && /\b(api|endpoint|rest|crud|cadastro|register)\b/i.test(rawLower)) {
+    if (repo.apiEndpoints.length > 0 && /\b(api|endpoint|rest|crud|cadastro|register)\b/i.test(rawNorm)) {
       const methods = [...new Set(repo.apiEndpoints.map((e) => e.method))];
       add(functional,
         Labels.requirements.exposeEndpoints(methods.join(', ')),
@@ -137,7 +229,7 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
     }
 
     // If repo has existing repositories/data layers, imply data persistence
-    if (repo.repositories.length > 0 && /\b(crud|cadastro|create|save|store|persist|register)\b/i.test(rawLower)) {
+    if (repo.repositories.length > 0 && /\b(crud|cadastro|create|save|store|persist|register)\b/i.test(rawNorm)) {
       add(functional,
         Labels.requirements.implementPersistence(repo.repositories.length),
         'must', 'data');
@@ -170,20 +262,32 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
     startId: number,
   ): void {
     let id = startId;
-    const rawLower = raw.toLowerCase();
     const existingDescs = new Set(functional.map((r) => r.description.toLowerCase()));
 
-    // Identify tables that relate to the feature
-    const featureKeywords = rawLower.match(/\b[a-z]{3,}\b/g) ?? [];
-    const relatedTables = db.tables.filter((t) =>
-      featureKeywords.some((k) => t.name.toLowerCase().includes(k)),
-    );
+    // Use TextAnalyzer for better keyword extraction
+    const featureTokens = this.analyzer.extractTokens(raw);
+    const expandedKeywords = new Set<string>();
+    for (const token of featureTokens) {
+      expandedKeywords.add(token);
+    }
+    const synonyms = this.analyzer.expandSynonyms(featureTokens);
+    for (const syn of synonyms) {
+      expandedKeywords.add(syn);
+    }
+
+    const relatedTables = db.tables.filter((t) => {
+      const tableLower = t.name.toLowerCase();
+      return [...expandedKeywords].some((k) => tableLower.includes(k) || k.includes(tableLower));
+    });
 
     if (relatedTables.length > 0) {
       const tableNames = relatedTables.map((t) => t.name).join(', ');
       const desc = Labels.requirements.integrateDbTables(tableNames);
       if (!existingDescs.has(desc.toLowerCase())) {
-        functional.push({ id: `FR-${id++}`, description: desc, priority: 'must', category: 'data' });
+        functional.push({
+          id: `FR-${id++}`, description: desc, priority: 'must', category: 'data',
+          source: 'inferred',
+        });
       }
 
       // Add column-level constraints for related tables
@@ -201,7 +305,7 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
     // If DB has stored procedures, note integration constraint
     if (db.storedProcedures && db.storedProcedures.length > 0) {
       const relevantProcs = db.storedProcedures.filter((sp) =>
-        featureKeywords.some((k) => sp.name.toLowerCase().includes(k)),
+        [...expandedKeywords].some((k) => sp.name.toLowerCase().includes(k)),
       );
       if (relevantProcs.length > 0) {
         constraints.push(
@@ -270,24 +374,6 @@ export class RequirementsAgent extends BaseAgent<FeatureContext, RequirementsAna
   }
 
   // ── Detection helpers ────────────────────────────────────
-
-  private detectPriority(text: string): 'must' | 'should' | 'could' {
-    if (/\b(must|critical|required|essential|obrigat[oó]ri|precis[ao])\b/.test(text)) return 'must';
-    if (/\b(could|nice to have|optional|desej[aá]vel|poderia)\b/.test(text)) return 'could';
-    return 'should';
-  }
-
-  private detectCategory(text: string): string {
-    if (/\b(api|endpoint|rest|graphql|rota|route)\b/.test(text)) return 'api';
-    if (/\b(ui|interface|frontend|page|screen|form|tela|formul[aá]rio|p[aá]gina)\b/.test(text)) return 'ui';
-    if (/\b(database|table|column|migration|schema|banco|tabela|coluna|dado)\b/.test(text)) return 'data';
-    if (/\b(auth|login|permission|role|security|autentica|permiss|seguran)/i.test(text)) return 'security';
-    if (/\b(test|spec|coverage|teste)\b/.test(text)) return 'testing';
-    if (/\b(deploy|ci|cd|pipeline|docker|infra)\b/.test(text)) return 'infrastructure';
-    if (/\b(notification|email|sms|webhook|notifica)/i.test(text)) return 'integration';
-    if (/\b(crud|cadastr|register|registr|creat|criar|list|listar|edit|editar|delet|exclu|remov)/i.test(text)) return 'data';
-    return 'general';
-  }
 
   private isNonFunctional(text: string): boolean {
     return /\b(performance|scalab|secur|reliab|availab|maintain|monitor|log|compliance|audit|desempenho|escala|confiab|disponib)/i.test(text);

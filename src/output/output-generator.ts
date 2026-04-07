@@ -103,6 +103,9 @@ export class OutputGenerator {
     // language-analysis.md
     this.writeLanguageAnalysis(featureDir, fc);
 
+    // coherence.md
+    this.writeCoherence(featureDir, fc);
+
     // feature-context.json
     const ctxPath = path.join(featureDir, 'feature-context.json');
     writeJson(ctxPath, fc);
@@ -133,14 +136,29 @@ export class OutputGenerator {
       if (req.functionalRequirements.length > 0) {
         lines.push(`## ${Labels.requirements.functional}`, '');
         for (const r of req.functionalRequirements) {
-          lines.push(`- **${r.id}** [${r.priority}] (${r.category}) ${r.description}`);
+          const sourceTag = r.source ? ` _[${r.source}]_` : '';
+          lines.push(`- **${r.id}** [${r.priority}] (${r.category}) ${r.description}${sourceTag}`);
+          if (r.acceptanceCriteria && r.acceptanceCriteria.length > 0) {
+            for (const ac of r.acceptanceCriteria) {
+              lines.push(`  - ✓ ${ac}`);
+            }
+          }
+          if (r.relatedComponents && r.relatedComponents.length > 0) {
+            lines.push(`  - _Componentes: ${r.relatedComponents.join(', ')}_`);
+          }
         }
         lines.push('');
       }
       if (req.nonFunctionalRequirements.length > 0) {
         lines.push(`## ${Labels.requirements.nonFunctional}`, '');
         for (const r of req.nonFunctionalRequirements) {
-          lines.push(`- **${r.id}** [${r.priority}] (${r.category}) ${r.description}`);
+          const sourceTag = r.source ? ` _[${r.source}]_` : '';
+          lines.push(`- **${r.id}** [${r.priority}] (${r.category}) ${r.description}${sourceTag}`);
+          if (r.acceptanceCriteria && r.acceptanceCriteria.length > 0) {
+            for (const ac of r.acceptanceCriteria) {
+              lines.push(`  - ✓ ${ac}`);
+            }
+          }
         }
         lines.push('');
       }
@@ -300,14 +318,49 @@ export class OutputGenerator {
       lines.push(Labels.estimation.noEstimation);
     } else {
       lines.push(`**${Labels.estimation.totalHours}**: ${est.totalHours}`);
-      lines.push(`**${Labels.estimation.confidence}**: ${est.confidence}`, '');
+      lines.push(`**${Labels.estimation.confidence}**: ${est.confidence}`);
+      if (est.storyPoints) lines.push(`**Story Points**: ${est.storyPoints}`);
+      lines.push('');
 
+      // ── Scenarios ──────────────────────────────────────
+      if (est.scenarios) {
+        lines.push('## Cenários de Estimativa', '');
+        lines.push('| Cenário | Horas | Dias |');
+        lines.push('|---|---|---|');
+        lines.push(`| Desenvolvimento Humano | ${est.scenarios.human.hours}h | ${est.scenarios.human.days}d |`);
+        lines.push(`| Com GitHub Copilot (-${est.scenarios.withCopilot.gain}) | ${est.scenarios.withCopilot.hours}h | ${est.scenarios.withCopilot.days}d |`);
+        lines.push(`| Abordagem Híbrida (-${est.scenarios.hybrid.gain}) | ${est.scenarios.hybrid.hours}h | ${est.scenarios.hybrid.days}d |`);
+        lines.push('');
+      }
+
+      // ── Breakdown ──────────────────────────────────────
       if (est.breakdown.length > 0) {
         lines.push(`## ${Labels.estimation.breakdown}`, '');
         lines.push(`| ${Labels.estimation.task} | ${Labels.estimation.hours} | ${Labels.estimation.complexity} |`);
         lines.push('|------|-------|------------|');
         for (const item of est.breakdown) {
           lines.push(`| ${item.task} | ${item.hours} | ${item.complexity} |`);
+        }
+        lines.push('');
+      }
+
+      // ── Timeline ───────────────────────────────────────
+      if (est.suggestedTimeline && est.suggestedTimeline.length > 0) {
+        lines.push('## Cronograma Sugerido', '');
+        lines.push('| Fase | Dias | Paralelizável |');
+        lines.push('|---|---|---|');
+        for (const tp of est.suggestedTimeline) {
+          lines.push(`| ${tp.phase} | ${tp.days}d | ${tp.parallelizable ? 'Sim' : 'Não'} |`);
+        }
+        lines.push('');
+      }
+
+      // ── Risks ──────────────────────────────────────────
+      if (est.estimationRisks && est.estimationRisks.length > 0) {
+        lines.push('## Riscos da Estimativa', '');
+        for (const r of est.estimationRisks) {
+          const direction = r.impact === 'increase' ? '↑' : '↓';
+          lines.push(`- ${direction} ${r.risk} (fator: ${r.factor}x)`);
         }
         lines.push('');
       }
@@ -456,6 +509,48 @@ export class OutputGenerator {
         for (const a of analysis.codeSmells) lines.push(`- ${a}`);
         lines.push('');
       }
+    }
+
+    writeMarkdown(filePath, lines.join('\n'));
+    this.logger.info(`Written: ${filePath}`);
+  }
+
+  private writeCoherence(dir: string, fc: FeatureContext): void {
+    if (!fc.coherenceReport) return;
+    const filePath = path.join(dir, 'coherence.md');
+    const cr = fc.coherenceReport;
+    const lines: string[] = ['# Relatório de Coerência', ''];
+
+    lines.push(`**Score de Coerência**: ${cr.coherenceScore}%`, '');
+
+    if (cr.uncoveredRequirements.length > 0) {
+      lines.push('## Requisitos Sem Cobertura de Escopo', '');
+      for (const r of cr.uncoveredRequirements) lines.push(`- ${r}`);
+      lines.push('');
+    }
+
+    if (cr.scopeWithoutRequirement.length > 0) {
+      lines.push('## Escopo Sem Requisito Justificador', '');
+      for (const s of cr.scopeWithoutRequirement) lines.push(`- ${s}`);
+      lines.push('');
+    }
+
+    if (cr.estimationGaps.length > 0) {
+      lines.push('## Gaps na Estimativa', '');
+      for (const g of cr.estimationGaps) lines.push(`- ${g}`);
+      lines.push('');
+    }
+
+    if (cr.riskMismatch.length > 0) {
+      lines.push('## Inconsistências de Risco', '');
+      for (const r of cr.riskMismatch) lines.push(`- ${r}`);
+      lines.push('');
+    }
+
+    if (cr.suggestions.length > 0) {
+      lines.push('## Sugestões', '');
+      for (const s of cr.suggestions) lines.push(`- ${s}`);
+      lines.push('');
     }
 
     writeMarkdown(filePath, lines.join('\n'));
