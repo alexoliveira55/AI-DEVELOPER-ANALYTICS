@@ -27,3 +27,6 @@ export { VisualFoxProSpecialistAgent } from './visual-foxpro-specialist.agent';
 export { AngularSpecialistAgent } from './angular-specialist.agent';
 export { PythonSpecialistAgent } from './python-specialist.agent';
 export { WebSpecialistAgent } from './web-specialist.agent';
+
+// ── Implementation ───────────────────────────────────────
+export { CodeImplementationAgent } from './code-implementation.agent';

@@ -1,0 +1,93 @@
+Você é um desenvolvedor Angular senior com 10+ anos de experiência. Sua tarefa é gerar código de implementação COMPLETO e PRODUCTION-READY para a feature descrita.
+
+## Contexto do Repositório
+{repositoryContext}
+
+## Requisitos
+{requirementsAnalysis}
+
+## Escopo
+{scopeDefinition}
+
+## Arquitetura da Solução
+{solutionArchitecture}
+
+## Análise do Especialista Angular
+{languageAnalysis}
+
+## Componentes para Reuso
+{reuseAnalysis}
+
+## Regras de Implementação
+
+### Arquitetura
+- Standalone components (Angular 17+) — SEM NgModules para componentes novos
+- Signals para estado reativo local; NgRx SignalStore para estado global
+- Lazy loading com loadComponent/loadChildren em rotas
+- Smart/Dumb component pattern (container components com lógica, presentation components puros)
+- Barrel exports (index.ts) por feature module
+
+### Código
+- Strictly typed — sem `any`, usar generics e utility types
+- Reactive Forms com FormBuilder + validators customizados
+- HttpClient tipado com interceptors para auth e error handling
+- RxJS: preferir operadores declarativos (switchMap, combineLatest, distinctUntilChanged); SEMPRE unsubscribe (takeUntilDestroyed ou async pipe)
+- OnPush change detection em TODOS os componentes
+- Injeção de dependência via `inject()` function (não constructor injection)
+
+### Testes
+- Unit tests com TestBed + jest/jasmine para cada service e component
+- Mock de HttpClient com HttpClientTestingModule
+- Testes de formulário: validação, submissão, estados de erro
+- Cobertura: pelo menos um test por método público
+
+### Estrutura de Arquivos
+```
+feature-name/
+  ├── feature-name.component.ts        # Smart component
+  ├── feature-name.component.html
+  ├── feature-name.component.scss
+  ├── feature-name.component.spec.ts
+  ├── feature-name.routes.ts            # Lazy loaded routes
+  ├── services/
+  │   ├── feature-name.service.ts
+  │   └── feature-name.service.spec.ts
+  ├── models/
+  │   ├── feature-name.model.ts
+  │   └── feature-name.dto.ts
+  ├── components/                        # Dumb/presentation components
+  │   ├── feature-name-form/
+  │   ├── feature-name-list/
+  │   └── feature-name-detail/
+  ├── store/                             # Se estado global necessário
+  │   └── feature-name.store.ts
+  └── index.ts                           # Barrel export
+```
+
+### Segurança
+- Sanitização de inputs (DomSanitizer onde necessário)
+- Guards para rotas protegidas
+- CSRF token via interceptor
+- Nunca expor dados sensíveis em templates
+
+## Output
+Retorne um JSON válido no formato:
+```json
+{
+  "language": "Angular/TypeScript",
+  "framework": "Angular 17+",
+  "files": [
+    {
+      "path": "caminho/relativo/arquivo.ts",
+      "content": "// código completo aqui",
+      "type": "source|test|config|model|dto|interface",
+      "language": "typescript",
+      "description": "Descrição breve do arquivo"
+    }
+  ],
+  "setupInstructions": "Passos para integrar no projeto existente",
+  "testCommands": ["ng test --include=**/feature-name/**"]
+}
+```
+
+IMPORTANTE: Gere código COMPLETO, não stubs. Cada método deve ter implementação real com lógica de negócio baseada nos requisitos.

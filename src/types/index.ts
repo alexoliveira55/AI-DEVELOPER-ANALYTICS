@@ -42,6 +42,9 @@ export enum AgentRole {
   TechnicalWriter = 'technical-writer',
   ExecutiveWriter = 'executive-writer',
   SummaryGenerator = 'summary-generator',
+
+  // ── Implementação de Código ─────────────
+  CodeImplementation = 'code-implementation',
 }
 
 /** Message passed between agents. */
@@ -344,6 +347,7 @@ export interface FeatureContext {
   documentationPackage?: DocumentationPackage;
   richPrototype?: RichPrototypeOutput;
   coherenceReport?: CoherenceReport;
+  implementation?: ImplementationOutput;
 }
 
 // ── Git Analysis ─────────────────────────────────────────────────────────────
@@ -433,6 +437,26 @@ export interface RichPrototypeOutput {
   responsive: boolean;
   interactive: boolean;
   framework: string;
+}
+
+// ── Code Implementation ──────────────────────────────────────────────────────
+
+export interface ImplementationOutput {
+  language: string;
+  framework: string;
+  files: ImplementationFile[];
+  setupInstructions: string;
+  testCommands: string[];
+  totalFiles: number;
+  totalLines: number;
+}
+
+export interface ImplementationFile {
+  path: string;
+  content: string;
+  type: 'source' | 'test' | 'config' | 'migration' | 'model' | 'dto' | 'interface';
+  language: string;
+  description: string;
 }
 
 // ── Pipeline Result ──────────────────────────────────────────────────────────

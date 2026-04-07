@@ -470,4 +470,22 @@ export const Labels = {
     interactive: 'Interativo',
     noPrototype: '_Nenhum protótipo rico foi gerado._',
   },
+
+  // ── Code Implementation ─────────────────────────────────
+  implementation: {
+    title: 'Implementação de Código',
+    sourceFiles: 'Arquivos de Código-Fonte',
+    testFiles: 'Arquivos de Teste',
+    configFiles: 'Arquivos de Configuração',
+    setupInstructions: 'Instruções de Setup',
+    testCommands: 'Comandos de Teste',
+    totalFiles: 'Total de Arquivos',
+    totalLines: 'Total de Linhas',
+    language: 'Linguagem',
+    framework: 'Framework',
+    fileType: 'Tipo',
+    noImplementation: '_Nenhuma implementação de código foi gerada._',
+    generatedBy: 'Gerado pelo AI Developer Analytics',
+    summary: 'Resumo da Implementação',
+  },
 };

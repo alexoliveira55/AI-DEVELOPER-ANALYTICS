@@ -199,8 +199,9 @@ server.tool(
     enableFlowcharts: z.boolean().optional().describe('Gerar fluxogramas Mermaid'),
     enableSpecialists: z.boolean().optional().describe('Ativar especialistas por linguagem'),
     enableExecutiveDocs: z.boolean().optional().describe('Gerar documentação técnica e executiva'),
+    enableImplementation: z.boolean().optional().describe('Gerar código de implementação como desenvolvedor senior'),
   },
-  async ({ description, projectPath, depth, enableFlowcharts, enableSpecialists, enableExecutiveDocs }) => {
+  async ({ description, projectPath, depth, enableFlowcharts, enableSpecialists, enableExecutiveDocs, enableImplementation }) => {
     const resolved = resolveProjectPath(projectPath);
     const config = loadConfig();
     const orchestrator = new Orchestrator();
@@ -213,6 +214,7 @@ server.tool(
       enableFlowcharts: enableFlowcharts ?? true,
       enableSpecialists: enableSpecialists ?? false,
       enableExecutiveDocs: enableExecutiveDocs ?? true,
+      enableImplementation: enableImplementation ?? false,
     });
 
     // Write output files
@@ -527,6 +529,74 @@ server.tool(
     } else {
       lines.push('_Não foi possível gerar o protótipo._');
     }
+
+    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+  },
+);
+
+// ── Tool: generate_implementation ────────────────────────────────────────────
+
+server.tool(
+  'generate_implementation',
+  'Gera código production-ready como um desenvolvedor senior. Suporta Angular, C#/.NET, Python, SQL, Flutter/Dart, Web, Visual FoxPro e genérico.',
+  {
+    description: z.string().describe('Descrição da funcionalidade a ser implementada'),
+    projectPath: z.string().optional().describe('Caminho do repositório. Se omitido, usa o diretório atual.'),
+    targetLanguage: z.string().optional().describe('Linguagem/framework alvo (angular, csharp, python, sql, flutter, web, vfp). Se omitido, detecta automaticamente.'),
+  },
+  async ({ description, projectPath, targetLanguage }) => {
+    const resolved = resolveProjectPath(projectPath);
+    const config = loadConfig();
+    const orchestrator = new Orchestrator();
+
+    const result = await orchestrator.run({
+      projectPath: resolved,
+      config,
+      requirements: description,
+      depth: 'standard',
+      enableSpecialists: true,
+      enableImplementation: true,
+    });
+
+    // Write output files
+    const outputGen = new OutputGenerator();
+    const outputDir = outputGen.write(result, resolved);
+
+    const fc = result.context;
+    const lines: string[] = [`# Implementação: ${description}\n`];
+    lines.push(`_Artefatos salvos em: \`${outputDir}\`_\n`);
+
+    if (fc.implementation) {
+      const impl = fc.implementation;
+      lines.push(`**Linguagem**: ${impl.language}`);
+      if (impl.framework) lines.push(`**Framework**: ${impl.framework}`);
+      lines.push(`**Arquivos gerados**: ${impl.totalFiles}`);
+      lines.push(`**Total de linhas**: ${impl.totalLines}\n`);
+
+      if (impl.setupInstructions) {
+        lines.push('## Instruções de Setup\n');
+        lines.push(impl.setupInstructions + '\n');
+      }
+
+      if (impl.testCommands.length > 0) {
+        lines.push('## Comandos de Teste\n');
+        for (const cmd of impl.testCommands) lines.push(`- \`${cmd}\``);
+        lines.push('');
+      }
+
+      lines.push(`## Arquivos (${impl.files.length})\n`);
+      for (const f of impl.files) {
+        lines.push(`### ${f.path}\n`);
+        if (f.description) lines.push(`_${f.description}_\n`);
+        lines.push('```');
+        lines.push(f.content);
+        lines.push('```\n');
+      }
+    } else {
+      lines.push('_Não foi possível gerar a implementação._');
+    }
+
+    lines.push(`\n---\n_Código completo em \`${outputDir}/implementation/\`_`);
 
     return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
   },

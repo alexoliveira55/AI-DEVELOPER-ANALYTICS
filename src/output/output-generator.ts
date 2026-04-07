@@ -106,6 +106,9 @@ export class OutputGenerator {
     // coherence.md
     this.writeCoherence(featureDir, fc);
 
+    // implementation.md + implementation/ files
+    this.writeImplementation(featureDir, fc);
+
     // feature-context.json
     const ctxPath = path.join(featureDir, 'feature-context.json');
     writeJson(ctxPath, fc);
@@ -513,6 +516,68 @@ export class OutputGenerator {
 
     writeMarkdown(filePath, lines.join('\n'));
     this.logger.info(`Written: ${filePath}`);
+  }
+
+  private writeImplementation(dir: string, fc: FeatureContext): void {
+    if (!fc.implementation) return;
+    const impl = fc.implementation;
+    const filePath = path.join(dir, 'implementation.md');
+    const lines: string[] = [`# ${Labels.implementation.title}`, ''];
+
+    lines.push(`**${Labels.implementation.language}**: ${impl.language}`);
+    if (impl.framework) lines.push(`**${Labels.implementation.framework}**: ${impl.framework}`);
+    lines.push(`**${Labels.implementation.totalFiles}**: ${impl.totalFiles}`);
+    lines.push(`**${Labels.implementation.totalLines}**: ${impl.totalLines}`);
+    lines.push(`_${Labels.implementation.generatedBy}_`, '');
+
+    // Summary table
+    lines.push(`## ${Labels.implementation.summary}`, '');
+    const sourceFiles = impl.files.filter(f => f.type === 'source');
+    const testFiles = impl.files.filter(f => f.type === 'test');
+    const configFiles = impl.files.filter(f => f.type === 'config');
+    lines.push(`- ${Labels.implementation.sourceFiles}: ${sourceFiles.length}`);
+    lines.push(`- ${Labels.implementation.testFiles}: ${testFiles.length}`);
+    lines.push(`- ${Labels.implementation.configFiles}: ${configFiles.length}`, '');
+
+    // Setup instructions
+    if (impl.setupInstructions) {
+      lines.push(`## ${Labels.implementation.setupInstructions}`, '');
+      lines.push(impl.setupInstructions, '');
+    }
+
+    // Test commands
+    if (impl.testCommands.length > 0) {
+      lines.push(`## ${Labels.implementation.testCommands}`, '');
+      for (const cmd of impl.testCommands) lines.push(`- \`${cmd}\``);
+      lines.push('');
+    }
+
+    // File listing with descriptions
+    for (const f of impl.files) {
+      lines.push(`## ${f.path}`, '');
+      lines.push(`_${Labels.implementation.fileType}: ${f.type} | ${Labels.implementation.language}: ${f.language}_`);
+      if (f.description) lines.push(`\n${f.description}`);
+      lines.push('');
+      lines.push('```');
+      lines.push(f.content);
+      lines.push('```');
+      lines.push('');
+    }
+
+    writeMarkdown(filePath, lines.join('\n'));
+    this.logger.info(`Written: ${filePath}`);
+
+    // Write individual implementation files
+    const implDir = path.join(dir, 'implementation');
+    ensureDirectory(implDir);
+
+    for (const f of impl.files) {
+      const targetPath = path.join(implDir, f.path);
+      const targetDir = path.dirname(targetPath);
+      ensureDirectory(targetDir);
+      fs.writeFileSync(targetPath, f.content, 'utf-8');
+    }
+    this.logger.info(`Written ${impl.files.length} implementation files to: ${implDir}`);
   }
 
   private writeCoherence(dir: string, fc: FeatureContext): void {

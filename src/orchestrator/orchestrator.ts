@@ -18,6 +18,7 @@ import {
   ExecutiveWriterAgent,
   SummaryGeneratorAgent,
   RichPrototypeGeneratorAgent,
+  CodeImplementationAgent,
 } from '../agents';
 import {
   FlutterDartSpecialistAgent,
@@ -55,6 +56,7 @@ export interface OrchestratorOptions {
   enableSpecialists?: boolean;
   enableFlowcharts?: boolean;
   enableExecutiveDocs?: boolean;
+  enableImplementation?: boolean;
   depth?: AnalysisDepth;
 }
 
@@ -143,10 +145,10 @@ export class Orchestrator {
     const {
       projectPath, config, requirements, generatePrototype, mode,
       attachPaths, enableSpecialists, enableFlowcharts, enableExecutiveDocs,
-      depth = 'standard',
+      enableImplementation, depth = 'standard',
     } = options;
     const startedAt = new Date();
-    const TOTAL_STEPS = 18;
+    const TOTAL_STEPS = 19;
 
     const effectiveMode = ModeManager.resolve(mode, config.executionMode);
 
@@ -391,6 +393,16 @@ export class Orchestrator {
       }
     } else {
       ctx.steps.push({ stepName: `Step 18/${TOTAL_STEPS}`, agent: 'Rich Prototype Generator', success: true, skipped: true, durationMs: 0 });
+    }
+
+    // ── 19. Code Implementation — conditional on enableImplementation ────
+    if (!isQuick && enableImplementation) {
+      fc.implementation = await this.executeStep(`Step 19/${TOTAL_STEPS}`, 'Code Implementation', () => {
+        const agent = new CodeImplementationAgent();
+        return agent.execute(fc, session);
+      }, ctx, [fc.solutionArchitecture]) ?? undefined;
+    } else {
+      ctx.steps.push({ stepName: `Step 19/${TOTAL_STEPS}`, agent: 'Code Implementation', success: true, skipped: true, durationMs: 0 });
     }
 
     // ── Coherence validation (standard + deep) ───────────────────────────

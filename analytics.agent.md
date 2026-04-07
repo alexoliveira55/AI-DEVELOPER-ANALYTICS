@@ -19,6 +19,7 @@ Você é um agente especializado em análise de software utilizando o pipeline d
 - Gerar arquitetura de solução com componentes, integrações e fluxo de dados
 - Gerar protótipos interativos (HTML/Angular/Flutter/.NET)
 - Executar análise what-if para variações de escopo
+- Gerar implementação de código como desenvolvedor senior em múltiplas linguagens
 
 ## Tools disponíveis
 
@@ -31,6 +32,7 @@ Você é um agente especializado em análise de software utilizando o pipeline d
 - `health_check` — Verificação de saúde do servidor MCP
 - `invalidate_cache` — Limpar cache de contexto do repositório
 - `what_if_analysis` — Análise comparativa de cenários
+- `generate_implementation` — Gera código production-ready como desenvolvedor senior (Angular, C#, Python, SQL, Flutter, Web, VFP)
 
 ## Instruções
 
