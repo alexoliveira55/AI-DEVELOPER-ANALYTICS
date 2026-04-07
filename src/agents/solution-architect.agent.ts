@@ -104,40 +104,91 @@ export class SolutionArchitectAgent extends BaseAgent<FeatureContext, SolutionAr
         continue; // skip generic component generation for VFP modules
       }
 
-      // Service — with inferred dependencies from reuse + existing services
+      // Service — prefer extending a high-relevance reuse candidate over creating new
       const serviceDeps = this.inferServiceDependencies(reuse, existingServices, moduleName);
-      proposedComponents.push({
-        name: this.applyNamingConvention(`${pascal}Service`, namingConvention),
-        type: 'service',
-        description: Labels.solution.coreBusinessLogic(moduleName),
-        isNew: true,
-        dependencies: serviceDeps,
-      });
+      const reuseServiceMatch = this.findReuseMatch(reuse, moduleName, 'service');
 
-      // Controller — with specific endpoint descriptions
-      if (this.needsController(requirements, moduleName)) {
-        const controllerName = this.applyNamingConvention(`${pascal}Controller`, namingConvention);
-        const serviceRef = this.applyNamingConvention(`${pascal}Service`, namingConvention);
+      if (reuseServiceMatch) {
+        // Extend existing service instead of creating a new one
+        const existingSvc = existingServices.find((s) => s.name === reuseServiceMatch.name);
         proposedComponents.push({
-          name: controllerName,
-          type: 'controller',
-          description: Labels.solution.restController(moduleName, routePrefix),
+          name: reuseServiceMatch.name,
+          type: 'service',
+          description: Labels.solution.extendWithReuse(
+            moduleName,
+            reuseServiceMatch.name,
+            reuseServiceMatch.filePath,
+            existingSvc ? existingSvc.methods.slice(0, 5).join(', ') : reuseServiceMatch.reason,
+          ),
+          isNew: false,
+          dependencies: existingSvc?.injectedDependencies ?? serviceDeps,
+        });
+      } else {
+        proposedComponents.push({
+          name: this.applyNamingConvention(`${pascal}Service`, namingConvention),
+          type: 'service',
+          description: Labels.solution.coreBusinessLogic(moduleName),
           isNew: true,
-          dependencies: [serviceRef],
+          dependencies: serviceDeps,
         });
       }
 
-      // Data layer — repository + model + migration
+      // Controller — prefer extending an existing controller within the same domain
+      if (this.needsController(requirements, moduleName)) {
+        const reuseCtrlMatch = this.findReuseMatch(reuse, moduleName, 'controller');
+        if (reuseCtrlMatch) {
+          const existingCtrl = existingControllers.find((c) => c.name === reuseCtrlMatch.name);
+          proposedComponents.push({
+            name: reuseCtrlMatch.name,
+            type: 'controller',
+            description: Labels.solution.extendController(
+              reuseCtrlMatch.name,
+              reuseCtrlMatch.filePath,
+              existingCtrl?.actions.length ?? 0,
+            ),
+            isNew: false,
+            dependencies: existingCtrl ? [] : [this.applyNamingConvention(`${pascal}Service`, namingConvention)],
+          });
+        } else {
+          const controllerName = this.applyNamingConvention(`${pascal}Controller`, namingConvention);
+          const serviceRef = reuseServiceMatch?.name ?? this.applyNamingConvention(`${pascal}Service`, namingConvention);
+          proposedComponents.push({
+            name: controllerName,
+            type: 'controller',
+            description: Labels.solution.restController(moduleName, routePrefix),
+            isNew: true,
+            dependencies: [serviceRef],
+          });
+        }
+      }
+
+      // Data layer — prefer extending an existing repository within the same domain
       if (this.needsDataLayer(requirements, moduleName, existingTables.map((t) => t.name))) {
-        const repoName = this.applyNamingConvention(`${pascal}Repository`, namingConvention);
-        proposedComponents.push({
-          name: repoName,
-          type: 'repository',
-          description: Labels.solution.dataAccessLayer(moduleName,
-            archPatterns.includes('Repository Pattern') ? Labels.solution.repositoryPattern : Labels.solution.dataAccess),
-          isNew: true,
-          dependencies: [],
-        });
+        const reuseRepoMatch = this.findReuseMatch(reuse, moduleName, 'repository');
+        if (reuseRepoMatch) {
+          const existingRepo = existingRepos.find((r) => r.name === reuseRepoMatch.name);
+          proposedComponents.push({
+            name: reuseRepoMatch.name,
+            type: 'repository',
+            description: Labels.solution.extendRepository(
+              reuseRepoMatch.name,
+              reuseRepoMatch.filePath,
+              existingRepo?.entity ?? Labels.common.unknown,
+            ),
+            isNew: false,
+            dependencies: [],
+          });
+        } else {
+          const repoName = this.applyNamingConvention(`${pascal}Repository`, namingConvention);
+          proposedComponents.push({
+            name: repoName,
+            type: 'repository',
+            description: Labels.solution.dataAccessLayer(moduleName,
+              archPatterns.includes('Repository Pattern') ? Labels.solution.repositoryPattern : Labels.solution.dataAccess),
+            isNew: true,
+            dependencies: [],
+          });
+        }
 
         // Model — with column hints from related DB tables
         const relatedTable = existingTables.find((t) => t.name.toLowerCase().includes(moduleName));
@@ -459,5 +510,23 @@ export class SolutionArchitectAgent extends BaseAgent<FeatureContext, SolutionAr
 
   private pascalCase(str: string): string {
     return str.replace(/(^|[-_])(\w)/g, (_, _sep, char: string) => char.toUpperCase());
+  }
+
+  /**
+   * Find a high-relevance reuse candidate whose domain overlaps with the given module.
+   * Used to decide "extend existing" vs "create new".
+   */
+  private findReuseMatch(
+    reuse: ReuseAnalysis,
+    moduleName: string,
+    type: 'service' | 'controller' | 'repository',
+  ): ReuseAnalysis['candidates'][number] | undefined {
+    const mod = moduleName.toLowerCase();
+    return reuse.candidates.find(
+      (c) =>
+        c.relevance === 'high' &&
+        c.type === type &&
+        c.name.toLowerCase().replace(/(service|controller|repository)$/i, '').includes(mod),
+    );
   }
 }

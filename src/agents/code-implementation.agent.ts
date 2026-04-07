@@ -96,6 +96,7 @@ export class CodeImplementationAgent extends BaseAgent<FeatureContext, Implement
     framework: string,
   ): Promise<ImplementationOutput> {
     const newComponents = this.extractNewComponents(fc);
+    const extendComponents = this.extractExtendComponents(fc);
     const conventions = this.detectConventions(fc);
     const files: ImplementationFile[] = [];
 
@@ -104,7 +105,12 @@ export class CodeImplementationAgent extends BaseAgent<FeatureContext, Implement
       files.push(...generated);
     }
 
-    // Generate setup README
+    // Generate extension guides for components being extended (not new)
+    for (const comp of extendComponents) {
+      files.push(this.generateExtensionGuide(comp, language, fc));
+    }
+
+    // Generate setup README (includes reuse context)
     files.push(this.generateReadme(fc, language, framework, newComponents));
 
     const totalLines = files.reduce((sum, f) => sum + f.content.split('\n').length, 0);
@@ -1360,6 +1366,8 @@ export class CodeImplementationAgent extends BaseAgent<FeatureContext, Implement
     framework: string,
     components: ProposedComponent[],
   ): ImplementationFile {
+    const extendComponents = this.extractExtendComponents(fc);
+
     const lines: string[] = [
       `# Implementation: ${fc.rawRequirements ?? 'Feature'}`,
       '',
@@ -1369,19 +1377,44 @@ export class CodeImplementationAgent extends BaseAgent<FeatureContext, Implement
       '',
       `- **Language**: ${language}`,
       `- **Framework**: ${framework}`,
-      `- **Components**: ${components.length} new`,
-      '',
-      `## Components`,
+      `- **New components**: ${components.length}`,
+      `- **Extending existing**: ${extendComponents.length}`,
       '',
     ];
 
-    for (const comp of components) {
-      lines.push(`### ${comp.name} (${comp.type})`);
-      lines.push(`${comp.description}`);
-      if (comp.dependencies.length > 0) {
-        lines.push(`- Dependencies: ${comp.dependencies.join(', ')}`);
+    // Reuse section — critical for developers to know what NOT to rewrite
+    if (fc.reuseAnalysis && fc.reuseAnalysis.candidates.length > 0) {
+      lines.push(`## Reuse (DO NOT reimplement)`, '');
+      lines.push(`> Score: ${fc.reuseAnalysis.reuseScore}%`, '');
+      for (const c of fc.reuseAnalysis.candidates.filter((r) => r.relevance === 'high' || r.relevance === 'medium')) {
+        lines.push(`- **${c.name}** (${c.type}) — \`${c.filePath}\``);
+        lines.push(`  ${c.reason}`);
       }
       lines.push('');
+    }
+
+    if (extendComponents.length > 0) {
+      lines.push(`## Extensions (modify existing — don't create new)`, '');
+      for (const comp of extendComponents) {
+        lines.push(`### ${comp.name} (${comp.type})`);
+        lines.push(`${comp.description}`);
+        if (comp.dependencies.length > 0) {
+          lines.push(`- Dependencies: ${comp.dependencies.join(', ')}`);
+        }
+        lines.push('');
+      }
+    }
+
+    if (components.length > 0) {
+      lines.push(`## New Components`, '');
+      for (const comp of components) {
+        lines.push(`### ${comp.name} (${comp.type})`);
+        lines.push(`${comp.description}`);
+        if (comp.dependencies.length > 0) {
+          lines.push(`- Dependencies: ${comp.dependencies.join(', ')}`);
+        }
+        lines.push('');
+      }
     }
 
     lines.push('## Setup', '');
@@ -1425,6 +1458,131 @@ export class CodeImplementationAgent extends BaseAgent<FeatureContext, Implement
   private extractNewComponents(fc: FeatureContext): ProposedComponent[] {
     if (!fc.solutionArchitecture) return [];
     return fc.solutionArchitecture.proposedComponents.filter((c) => c.isNew);
+  }
+
+  private extractExtendComponents(fc: FeatureContext): ProposedComponent[] {
+    if (!fc.solutionArchitecture) return [];
+    return fc.solutionArchitecture.proposedComponents.filter((c) => !c.isNew);
+  }
+
+  /**
+   * Generate an extension guide file for an existing component being modified.
+   * Instead of creating brand-new code, produces a file with clear instructions
+   * on what to ADD to the existing component, preserving legacy methods.
+   */
+  private generateExtensionGuide(
+    comp: ProposedComponent,
+    language: string,
+    fc: FeatureContext,
+  ): ImplementationFile {
+    const ext = LANGUAGE_EXT_MAP[language.toLowerCase()] ?? 'txt';
+    const kebab = this.toKebab(comp.name);
+    const pascal = this.toPascal(comp.name);
+    const feature = fc.rawRequirements ?? 'feature';
+
+    // Find existing methods to list as "preserve"
+    const existingSvc = fc.repositoryContext?.services.find((s) => s.name === comp.name);
+    const existingCtrl = fc.repositoryContext?.controllers?.find((c) => c.name === comp.name);
+    const existingMethods = existingSvc?.methods ?? existingCtrl?.actions.map((a) => a.name) ?? [];
+
+    // Find reuse candidate for additional context
+    const reuseCandidate = fc.reuseAnalysis?.candidates.find(
+      (c) => c.name.toLowerCase() === comp.name.toLowerCase(),
+    );
+
+    const lines: string[] = [
+      `// ============================================================`,
+      `// EXTENSION GUIDE: ${comp.name}`,
+      `// Description: ${comp.description}`,
+      `// Feature: ${feature}`,
+      `// ============================================================`,
+      `//`,
+      `// This file describes what to ADD to the EXISTING component.`,
+      `// DO NOT create a new file — modify the original at:`,
+      `//   ${reuseCandidate?.filePath ?? existingSvc?.filePath ?? comp.name}`,
+      `//`,
+    ];
+
+    if (existingMethods.length > 0) {
+      lines.push(`// PRESERVE these existing methods (do not modify signatures):`);
+      for (const m of existingMethods.slice(0, 15)) {
+        lines.push(`//   - ${m}`);
+      }
+      if (existingMethods.length > 15) {
+        lines.push(`//   ... and ${existingMethods.length - 15} more`);
+      }
+      lines.push(`//`);
+    }
+
+    if (comp.dependencies.length > 0) {
+      lines.push(`// Dependencies (already injected or to inject):`);
+      for (const d of comp.dependencies) {
+        lines.push(`//   - ${d}`);
+      }
+      lines.push(`//`);
+    }
+
+    lines.push(
+      `// ADD the following methods/functionality:`,
+      `// ============================================================`,
+      ``,
+    );
+
+    // Generate stub methods to add based on the feature
+    const featureBase = this.toKebab(feature).replace(/-/g, '_').slice(0, 30);
+    const lowerLang = language.toLowerCase();
+
+    if (lowerLang.includes('c#') || lowerLang.includes('.net')) {
+      lines.push(
+        `// Add these methods to the existing ${pascal} class:`,
+        ``,
+        `public async Task<${pascal}Result> Process${this.toPascal(featureBase)}Async(${pascal}Request request)`,
+        `{`,
+        `    // TODO: Implement ${feature} logic`,
+        `    // Reuse existing methods: ${existingMethods.slice(0, 3).join(', ') || 'N/A'}`,
+        `    throw new NotImplementedException();`,
+        `}`,
+      );
+    } else if (lowerLang.includes('python')) {
+      lines.push(
+        `# Add these methods to the existing ${pascal} class:`,
+        ``,
+        `def process_${featureBase}(self, request: dict) -> dict:`,
+        `    """${feature}"""`,
+        `    # TODO: Implement — reuse existing methods: ${existingMethods.slice(0, 3).join(', ') || 'N/A'}`,
+        `    raise NotImplementedError()`,
+      );
+    } else if (lowerLang.includes('foxpro')) {
+      lines.push(
+        `*-- Add these methods to the existing ${pascal} class:`,
+        ``,
+        `PROCEDURE Process${this.toPascal(featureBase)}`,
+        `  LPARAMETERS toRequest`,
+        `  *-- TODO: Implement ${feature}`,
+        `  *-- Reuse existing methods: ${existingMethods.slice(0, 3).join(', ') || 'N/A'}`,
+        `  RETURN .F.`,
+        `ENDPROC`,
+      );
+    } else {
+      // TypeScript / JavaScript / Generic
+      lines.push(
+        `// Add these methods to the existing ${pascal} class:`,
+        ``,
+        `async process${this.toPascal(featureBase)}(request: unknown): Promise<unknown> {`,
+        `  // TODO: Implement ${feature}`,
+        `  // Reuse existing methods: ${existingMethods.slice(0, 3).join(', ') || 'N/A'}`,
+        `  throw new Error('Not implemented');`,
+        `}`,
+      );
+    }
+
+    return {
+      path: `extensions/${kebab}-extension.${ext}`,
+      content: lines.join('\n'),
+      type: 'source',
+      language: ext,
+      description: `Extension guide for existing ${comp.name} — add new methods without modifying existing ones`,
+    };
   }
 
   private detectConventions(fc: FeatureContext): ConventionInfo {

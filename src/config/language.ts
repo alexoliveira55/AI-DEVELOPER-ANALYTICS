@@ -184,6 +184,10 @@ export const Labels = {
       `Estender ${name} em ${path} — adicionar novos métodos de consulta (entidade: ${entity})`,
     extendExisting: (name: string) =>
       `Estender ${name} existente com nova funcionalidade`,
+    extendWithReuse: (name: string, existing: string, path: string, methods: string) =>
+      `Estender ${existing} (${path}) ao invés de criar novo — reutilizar métodos: ${methods}. Adicionar somente a lógica de ${name} que não existe.`,
+    reuseInsteadOfNew: (existing: string, path: string) =>
+      `Componente existente ${existing} (${path}) cobre esta necessidade — reutilizar ao invés de criar novo`,
     reusesComponent: (source: string, target: string, type: string, path: string) =>
       `${source} reutiliza ${target} (${type} em ${path})`,
     dependsOnExisting: (source: string, target: string) =>
@@ -259,6 +263,10 @@ export const Labels = {
     sharedComponents: 'Componentes compartilhados',
     sharedComponentsDesc: (count: number, details: string) =>
       `${count} componente(s) compartilhado(s) serão consumidos pelo novo código: ${details}`,
+    highReuseImpact: (name: string, path: string, consumers: number) =>
+      `⚠️ ${name} (${path}) é altamente reutilizado (${consumers} consumidor(es)). Modificações devem preservar contratos existentes para não quebrar dependentes.`,
+    preserveLegacy: (name: string, methods: string) =>
+      `Preservar assinaturas existentes de ${name}: ${methods} — adicionar novos métodos sem alterar os atuais`,
     integrationComplexity: 'Complexidade de integração',
     integrationComplexityDesc: (count: number) =>
       `${count} pontos de integração — alto risco de acoplamento. Considere padrão facade para reduzir dependências.`,

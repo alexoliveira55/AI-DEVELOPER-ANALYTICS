@@ -22,6 +22,7 @@ export class ImpactAnalysisAgent extends BaseAgent<FeatureContext, ImpactAnalysi
     const scope = fc.scopeDefinition;
     const repo = fc.repositoryContext;
     const db = fc.databaseSummary;
+    const reuse = fc.reuseAnalysis;
 
     const existingServices = repo?.services ?? [];
     const existingControllers = repo?.controllers ?? [];
@@ -183,6 +184,42 @@ export class ImpactAnalysisAgent extends BaseAgent<FeatureContext, ImpactAnalysi
         impact: 'low',
         description: Labels.impact.sharedComponentsDesc(usedComponents.length, usedComponents.map((c) => `${c.name} (${c.category})`).join(', ')),
       });
+    }
+
+    // ── Reuse candidates — legacy preservation guard ──────
+    if (reuse && reuse.candidates.length > 0) {
+      const highReuse = reuse.candidates.filter((c) => c.relevance === 'high');
+      for (const candidate of highReuse) {
+        // Find how many services consume this candidate
+        const svc = existingServices.find((s) => s.name === candidate.name);
+        const consumers = svc
+          ? existingServices.filter((s) => s.injectedDependencies.includes(svc.name))
+          : [];
+
+        // If this candidate is a dependency of proposed components or is being modified
+        const isDirectlyUsed = (solution?.proposedComponents ?? []).some(
+          (pc) => pc.dependencies.some((d) => d.toLowerCase() === candidate.name.toLowerCase()) ||
+                  (pc.name.toLowerCase() === candidate.name.toLowerCase() && !pc.isNew),
+        );
+
+        if (isDirectlyUsed) {
+          const impact: ImpactedArea['impact'] = consumers.length > 2 ? 'high' : consumers.length > 0 ? 'medium' : 'low';
+          impactedAreas.push({
+            area: candidate.name,
+            files: [candidate.filePath, ...consumers.map((c) => c.filePath)],
+            impact,
+            description: Labels.impact.highReuseImpact(candidate.name, candidate.filePath, consumers.length),
+          });
+          if (svc && svc.methods.length > 0) {
+            breakingChanges.push(
+              Labels.impact.preserveLegacy(candidate.name, svc.methods.slice(0, 5).join(', ')),
+            );
+          }
+          testingRecommendations.push(
+            Labels.impact.regressionTests(candidate.name, consumers.length, consumers.map((c) => c.name).join(', ')),
+          );
+        }
+      }
     }
 
     // ── Integration points impact ─────────────────────────

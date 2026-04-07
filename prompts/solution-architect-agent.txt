@@ -44,10 +44,12 @@ Design the technical solution in valid JSON:
 
 ## Rules
 1. **Follow existing patterns**: The solution MUST use the same architecture pattern detected in the repository (e.g., if MVC, propose controllers + services + repositories).
-2. **Maximize reuse**: For each high-relevance reuse candidate, prefer extension over creation. Only create new components when no suitable existing component can be extended.
-3. **Name consistently**: Use the same naming conventions detected in the repository (e.g., if services end in `Service`, new ones should too).
-4. **Dependencies**: List ALL dependencies for each component, including existing components it will consume.
-5. **Data flows**: Trace the complete data flow from user input to persistence and back.
+2. **Maximize reuse**: For each high-relevance reuse candidate, prefer extension over creation. Only create new components when no suitable existing component can be extended. Mark reused components as `isNew: false` and describe them as extensions.
+3. **Preserve legacy**: NEVER propose refactoring or renaming existing components. New functionality must be ADDED alongside existing methods/interfaces, not replacing them. Existing method signatures are immutable.
+4. **Scope discipline**: Only propose components directly required by the stated requirements. Avoid introducing "nice-to-have" architectural improvements or optimizations beyond the requested scope.
+5. **Name consistently**: Use the same naming conventions detected in the repository (e.g., if services end in `Service`, new ones should too).
+6. **Dependencies**: List ALL dependencies for each component, including existing components it will consume.
+7. **Data flows**: Trace the complete data flow from user input to persistence and back.
 6. **Technology stack**: List only technologies that are already in the repository OR explicitly required by the new feature.
 
 ## Output
