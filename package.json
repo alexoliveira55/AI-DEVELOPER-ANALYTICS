@@ -21,8 +21,9 @@
     "dev": "ts-node src/index.ts",
     "lint": "eslint src/**/*.ts",
     "clean": "rimraf dist",
-    "package:win": "pkg dist/mcp-server.js --targets node20-win-x64 --output ai-mcp.exe",
-    "dist": "npm run build && npm run package:win",
+    "bundle:mcp": "esbuild dist/mcp-server.js --bundle --platform=node --target=node20 --outfile=dist/mcp-server.bundle.js --external:node:* --external:pg --external:mssql --external:mysql2 --external:mysql2/promise",
+    "package:win": "pkg dist/mcp-server.bundle.js --targets node20-win-x64 --output ai-mcp.exe",
+    "dist": "npm run build && npm run bundle:mcp && npm run package:win",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "pkg": {
@@ -41,6 +42,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@yao-pkg/pkg": "^6.14.2",
+    "esbuild": "^0.28.0",
     "rimraf": "^5.0.5",
     "typescript": "^5.3.3"
   },
