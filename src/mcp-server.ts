@@ -20,6 +20,15 @@ import { AnalysisDepth } from './types';
 // Suppress all console/winston output — MCP uses stdout for JSON-RPC
 Logger.silent = true;
 
+/** Hard ceiling for MCP tool response text (bytes). Copilot rejects payloads above ~100 KB. */
+const MAX_RESPONSE_SIZE = 64_000;
+
+/** Max characters of source code to inline per file in the response. */
+const MAX_FILE_PREVIEW = 2_000;
+
+/** Max number of files whose preview is inlined. Beyond this, only the path list is shown. */
+const MAX_INLINE_FILES = 8;
+
 const server = new McpServer({
   name: 'ai-developer-analytics',
   version: '2.0.0',
@@ -34,6 +43,60 @@ function resolveProjectPath(projectPath?: string): string {
 function formatSection(title: string, content: string | undefined): string {
   if (!content) return '';
   return `## ${title}\n\n${content}\n\n`;
+}
+
+/**
+ * Truncate text to `maxLen` characters, appending an ellipsis note when trimmed.
+ */
+function truncateText(text: string, maxLen: number, tailNote?: string): string {
+  if (text.length <= maxLen) return text;
+  const note = tailNote ?? '... (truncado)';
+  return text.slice(0, maxLen) + `\n${note}`;
+}
+
+/**
+ * Build a compact summary for a list of generated files.
+ * Inlines a limited preview for up to MAX_INLINE_FILES files, then lists paths only.
+ */
+function summarizeFiles(
+  files: { path: string; content: string; description?: string }[],
+  outputDir: string,
+): string {
+  const lines: string[] = [];
+  lines.push(`**Arquivos gerados**: ${files.length}\n`);
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const lineCount = f.content.split('\n').length;
+
+    if (i < MAX_INLINE_FILES) {
+      lines.push(`### ${f.path} (${lineCount} linhas)\n`);
+      if (f.description) lines.push(`_${f.description}_\n`);
+      const preview = truncateText(f.content, MAX_FILE_PREVIEW, `... (truncado — ver arquivo completo em \`${outputDir}\`)`);
+      lines.push('```');
+      lines.push(preview);
+      lines.push('```\n');
+    } else {
+      // Only list remaining files compactly
+      if (i === MAX_INLINE_FILES) {
+        lines.push(`### Demais arquivos (ver \`${outputDir}\`)\n`);
+      }
+      lines.push(`- \`${f.path}\` — ${lineCount} linhas${f.description ? ' — ' + f.description : ''}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Enforce the global response size limit. If the response exceeds MAX_RESPONSE_SIZE,
+ * it is trimmed and a footer is appended directing the user to the output directory.
+ */
+function enforceResponseLimit(text: string, outputDir?: string): string {
+  if (text.length <= MAX_RESPONSE_SIZE) return text;
+  const footer = outputDir
+    ? `\n\n---\n⚠️ Resposta truncada (${Math.round(text.length / 1024)} KB). Documentação completa em \`${outputDir}\`.`
+    : `\n\n---\n⚠️ Resposta truncada (${Math.round(text.length / 1024)} KB).`;
+  return text.slice(0, MAX_RESPONSE_SIZE - footer.length) + footer;
 }
 
 // ── Tool: analyze_repository ─────────────────────────────────────────────────
@@ -116,7 +179,8 @@ server.tool(
       lines.push('');
     }
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    const repoResponse = enforceResponseLimit(lines.join('\n'));
+    return { content: [{ type: 'text' as const, text: repoResponse }] };
   },
 );
 
@@ -288,7 +352,7 @@ server.tool(
     }
 
     if (fc.documentationPackage?.summary) {
-      lines.push(fc.documentationPackage.summary);
+      lines.push(truncateText(fc.documentationPackage.summary, 4_000, '... (documentação truncada — ver artefatos em disco)'));
     }
 
     // ── Coherence Report ─────────────────────────────────
@@ -320,7 +384,8 @@ server.tool(
 
     lines.push(`\n---\n_Documentação completa em \`${outputDir}\`_`);
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    const fullResponse = enforceResponseLimit(lines.join('\n'), outputDir);
+    return { content: [{ type: 'text' as const, text: fullResponse }] };
   },
 );
 
@@ -473,12 +538,13 @@ server.tool(
         lines.push(`### ${chart.title}\n`);
         lines.push(chart.description + '\n');
         lines.push('```mermaid');
-        lines.push(chart.mermaidCode);
+        lines.push(truncateText(chart.mermaidCode, 3_000, '%% ... (diagrama truncado)'));
         lines.push('```\n');
       }
     }
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    const solResponse = enforceResponseLimit(lines.join('\n'));
+    return { content: [{ type: 'text' as const, text: solResponse }] };
   },
 );
 
@@ -506,31 +572,26 @@ server.tool(
     const fc = result.context;
     const lines: string[] = [`# Protótipo: ${description}\n`];
 
+    // Write output files
+    const outputGen = new OutputGenerator();
+    const outputDir = outputGen.write(result, resolved);
+    lines.push(`_Artefatos salvos em: \`${outputDir}\`_\n`);
+
     if (fc.richPrototype) {
       const proto = fc.richPrototype;
       lines.push(`**Framework**: ${proto.framework}`);
       lines.push(`**Responsivo**: ${proto.responsive ? 'Sim' : 'Não'}`);
       lines.push(`**Interativo**: ${proto.interactive ? 'Sim' : 'Não'}`);
       lines.push(`**Ponto de entrada**: \`${proto.entryPoint}\`\n`);
-      lines.push(`**Arquivos gerados** (${proto.files.length}):\n`);
-      for (const f of proto.files) {
-        lines.push(`### ${f.path}\n`);
-        lines.push('```');
-        lines.push(f.content);
-        lines.push('```\n');
-      }
+      lines.push(summarizeFiles(proto.files, outputDir));
     } else if (fc.prototype) {
-      for (const f of fc.prototype.files) {
-        lines.push(`### ${f.path}\n`);
-        lines.push('```');
-        lines.push(f.content);
-        lines.push('```\n');
-      }
+      lines.push(summarizeFiles(fc.prototype.files, outputDir));
     } else {
       lines.push('_Não foi possível gerar o protótipo._');
     }
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    const protoResponse = enforceResponseLimit(lines.join('\n'), outputDir);
+    return { content: [{ type: 'text' as const, text: protoResponse }] };
   },
 );
 
@@ -584,21 +645,16 @@ server.tool(
         lines.push('');
       }
 
-      lines.push(`## Arquivos (${impl.files.length})\n`);
-      for (const f of impl.files) {
-        lines.push(`### ${f.path}\n`);
-        if (f.description) lines.push(`_${f.description}_\n`);
-        lines.push('```');
-        lines.push(f.content);
-        lines.push('```\n');
-      }
+      lines.push('## Arquivos\n');
+      lines.push(summarizeFiles(impl.files, outputDir));
     } else {
       lines.push('_Não foi possível gerar a implementação._');
     }
 
-    lines.push(`\n---\n_Código completo em \`${outputDir}/implementation/\`_`);
+    lines.push(`\n---\n_Código completo em \`${outputDir}\`_`);
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    const implResponse = enforceResponseLimit(lines.join('\n'), outputDir);
+    return { content: [{ type: 'text' as const, text: implResponse }] };
   },
 );
 
@@ -715,7 +771,8 @@ server.tool(
       lines.push(`**Score**: ${stdResult.context.coherenceReport.coherenceScore}%\n`);
     }
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    const whatIfResponse = enforceResponseLimit(lines.join('\n'));
+    return { content: [{ type: 'text' as const, text: whatIfResponse }] };
   },
 );
 
