@@ -4,6 +4,7 @@ export { RequirementsAgent } from './requirements.agent';
 export { ScopeAgent } from './scope.agent';
 export { ReuseAgent } from './reuse.agent';
 export { SolutionArchitectAgent } from './solution-architect.agent';
+export { ImplementationPlanAgent } from './implementation-plan.agent';
 export { ImpactAnalysisAgent } from './impact-analysis.agent';
 export { EstimationAgent } from './estimation.agent';
 export { DocumentationGeneratorAgent } from './documentation-generator.agent';

@@ -10,6 +10,7 @@ import {
   ReuseAgent,
   ScopeAgent,
   SolutionArchitectAgent,
+  ImplementationPlanAgent,
   GitAnalyzerAgent,
   ProjectDiscoveryAgent,
   AttachmentReaderAgent,
@@ -148,7 +149,7 @@ export class Orchestrator {
       enableImplementation, depth = 'standard',
     } = options;
     const startedAt = new Date();
-    const TOTAL_STEPS = 19;
+    const TOTAL_STEPS = 20;
 
     const effectiveMode = ModeManager.resolve(mode, config.executionMode);
 
@@ -277,13 +278,19 @@ export class Orchestrator {
         const agent = new SolutionArchitectAgent();
         return agent.execute(fc, session);
       }, ctx, [fc.requirementsAnalysis, fc.scopeDefinition, fc.reuseAnalysis]);
+
+      // ── 10. Implementation Plan — requires solution architecture ──────
+      fc.implementationPlan = await this.executeStep(`Step 10/${TOTAL_STEPS}`, 'Implementation Plan Architect', () => {
+        const agent = new ImplementationPlanAgent();
+        return agent.execute(fc, session);
+      }, ctx, [fc.solutionArchitecture]);
     } else {
       for (const [step, agent] of [['8', 'Reuse Analyst'], ['9', 'Solution Architect']]) {
         ctx.steps.push({ stepName: `Step ${step}/${TOTAL_STEPS}`, agent, success: true, skipped: true, durationMs: 0 });
       }
     }
 
-    // ── 10. Language Specialists — only in deep mode ─────────────────────
+    // ── 11. Language Specialists — only in deep mode ─────────────────────
     if (isDeep && enableSpecialists) {
       const specialists: LanguageSpecialistAgent[] = [
         new FlutterDartSpecialistAgent(),
@@ -299,7 +306,7 @@ export class Orchestrator {
       for (const specialist of specialists) {
         if (specialist.isRelevant(fc)) {
           const result = await this.executeStep(
-            `Step 10/${TOTAL_STEPS}`, specialist.name, () => specialist.execute(fc, session),
+            `Step 11/${TOTAL_STEPS}`, specialist.name, () => specialist.execute(fc, session),
             ctx, [fc.solutionArchitecture],
           );
           if (result) analyses.push(result);
@@ -307,102 +314,102 @@ export class Orchestrator {
       }
       fc.languageAnalyses = analyses.length > 0 ? analyses : undefined;
     } else {
-      ctx.steps.push({ stepName: `Step 10/${TOTAL_STEPS}`, agent: 'Language Specialists', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 11/${TOTAL_STEPS}`, agent: 'Language Specialists', success: true, skipped: true, durationMs: 0 });
     }
 
     if (!isQuick) {
-      // ── 11. Impact — warning, requires solution + scope ────────────────
-      fc.impactAnalysis = await this.executeStep(`Step 11/${TOTAL_STEPS}`, 'Impact Analyst', () => {
+      // ── 12. Impact — warning, requires solution + scope ────────────────
+      fc.impactAnalysis = await this.executeStep(`Step 12/${TOTAL_STEPS}`, 'Impact Analyst', () => {
         const agent = new ImpactAnalysisAgent();
         return agent.execute(fc, session);
       }, ctx, [fc.solutionArchitecture, fc.scopeDefinition]);
     } else {
-      ctx.steps.push({ stepName: `Step 11/${TOTAL_STEPS}`, agent: 'Impact Analyst', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 12/${TOTAL_STEPS}`, agent: 'Impact Analyst', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 12. Estimation — always run (core deliverable) ───────────────────
-    fc.estimation = await this.executeStep(`Step 12/${TOTAL_STEPS}`, 'Estimation Agent', () => {
+    // ── 13. Estimation — always run (core deliverable) ───────────────────
+    fc.estimation = await this.executeStep(`Step 13/${TOTAL_STEPS}`, 'Estimation Agent', () => {
       const agent = new EstimationAgent();
       return agent.execute(fc, session);
     }, ctx);
 
     if (!isQuick) {
-      // ── 13. Flowchart Generator — conditional on enableFlowcharts ──────
+      // ── 14. Flowchart Generator — conditional on enableFlowcharts ──────
       if (enableFlowcharts) {
-        fc.flowcharts = await this.executeStep(`Step 13/${TOTAL_STEPS}`, 'Flowchart Generator', () => {
+        fc.flowcharts = await this.executeStep(`Step 14/${TOTAL_STEPS}`, 'Flowchart Generator', () => {
           const agent = new FlowchartGeneratorAgent();
           return agent.execute(fc, session);
         }, ctx, [fc.solutionArchitecture]) ?? undefined;
       } else {
-        ctx.steps.push({ stepName: `Step 13/${TOTAL_STEPS}`, agent: 'Flowchart Generator', success: true, skipped: true, durationMs: 0 });
+        ctx.steps.push({ stepName: `Step 14/${TOTAL_STEPS}`, agent: 'Flowchart Generator', success: true, skipped: true, durationMs: 0 });
       }
 
-      // ── 14. Documentation — warning ────────────────────────────────────
-      fc.documentation = await this.executeStep(`Step 14/${TOTAL_STEPS}`, 'Documentation Generator', () => {
+      // ── 15. Documentation — warning ────────────────────────────────────
+      fc.documentation = await this.executeStep(`Step 15/${TOTAL_STEPS}`, 'Documentation Generator', () => {
         const agent = new DocumentationGeneratorAgent();
         return agent.execute(fc, session);
       }, ctx);
     } else {
-      ctx.steps.push({ stepName: `Step 13/${TOTAL_STEPS}`, agent: 'Flowchart Generator', success: true, skipped: true, durationMs: 0 });
-      ctx.steps.push({ stepName: `Step 14/${TOTAL_STEPS}`, agent: 'Documentation Generator', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 14/${TOTAL_STEPS}`, agent: 'Flowchart Generator', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 15/${TOTAL_STEPS}`, agent: 'Documentation Generator', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 15-16: Executive docs — only in deep or standard+enabled ─────────
+    // ── 16-17: Executive docs — only in deep or standard+enabled ─────────
     if (!isQuick && enableExecutiveDocs) {
       fc.documentationPackage = fc.documentationPackage ?? { technical: '', executive: '', summary: '', flowcharts: [] };
-      const techDoc = await this.executeStep(`Step 15/${TOTAL_STEPS}`, 'Technical Writer', () => {
+      const techDoc = await this.executeStep(`Step 16/${TOTAL_STEPS}`, 'Technical Writer', () => {
         const agent = new TechnicalWriterAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
       if (techDoc && fc.documentationPackage) fc.documentationPackage.technical = techDoc;
 
-      const execDoc = await this.executeStep(`Step 16/${TOTAL_STEPS}`, 'Executive Writer', () => {
+      const execDoc = await this.executeStep(`Step 17/${TOTAL_STEPS}`, 'Executive Writer', () => {
         const agent = new ExecutiveWriterAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
       if (execDoc && fc.documentationPackage) fc.documentationPackage.executive = execDoc;
     } else {
-      ctx.steps.push({ stepName: `Step 15/${TOTAL_STEPS}`, agent: 'Technical Writer', success: true, skipped: true, durationMs: 0 });
-      ctx.steps.push({ stepName: `Step 16/${TOTAL_STEPS}`, agent: 'Executive Writer', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 16/${TOTAL_STEPS}`, agent: 'Technical Writer', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 17/${TOTAL_STEPS}`, agent: 'Executive Writer', success: true, skipped: true, durationMs: 0 });
     }
 
     if (!isQuick) {
-      // ── 17. Summary Generator ──────────────────────────────────────────
+      // ── 18. Summary Generator ──────────────────────────────────────────
       fc.documentationPackage = fc.documentationPackage ?? { technical: '', executive: '', summary: '', flowcharts: [] };
-      const summary = await this.executeStep(`Step 17/${TOTAL_STEPS}`, 'Summary Generator', () => {
+      const summary = await this.executeStep(`Step 18/${TOTAL_STEPS}`, 'Summary Generator', () => {
         const agent = new SummaryGeneratorAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
       if (summary && fc.documentationPackage) fc.documentationPackage.summary = summary;
     } else {
-      ctx.steps.push({ stepName: `Step 17/${TOTAL_STEPS}`, agent: 'Summary Generator', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 18/${TOTAL_STEPS}`, agent: 'Summary Generator', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 18. Prototype / Rich Prototype — only standard/deep ──────────────
+    // ── 19. Prototype / Rich Prototype — only standard/deep ──────────────
     if (!isQuick && generatePrototype && requirements) {
-      fc.richPrototype = await this.executeStep(`Step 18/${TOTAL_STEPS}`, 'Rich Prototype Generator', () => {
+      fc.richPrototype = await this.executeStep(`Step 19/${TOTAL_STEPS}`, 'Rich Prototype Generator', () => {
         const agent = new RichPrototypeGeneratorAgent();
         return agent.execute(fc, session);
       }, ctx) ?? undefined;
 
       if (!fc.richPrototype) {
-        fc.prototype = await this.executeStep(`Step 18/${TOTAL_STEPS}`, 'Prototype Generator', () => {
+        fc.prototype = await this.executeStep(`Step 19/${TOTAL_STEPS}`, 'Prototype Generator', () => {
           const agent = new PrototypeGeneratorAgent();
           return agent.execute(fc, session);
         }, ctx, [generatePrototype, requirements]);
       }
     } else {
-      ctx.steps.push({ stepName: `Step 18/${TOTAL_STEPS}`, agent: 'Rich Prototype Generator', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 19/${TOTAL_STEPS}`, agent: 'Rich Prototype Generator', success: true, skipped: true, durationMs: 0 });
     }
 
-    // ── 19. Code Implementation — conditional on enableImplementation ────
+    // ── 20. Code Implementation — conditional on enableImplementation ────
     if (!isQuick && enableImplementation) {
-      fc.implementation = await this.executeStep(`Step 19/${TOTAL_STEPS}`, 'Code Implementation', () => {
+      fc.implementation = await this.executeStep(`Step 20/${TOTAL_STEPS}`, 'Code Implementation', () => {
         const agent = new CodeImplementationAgent();
         return agent.execute(fc, session);
       }, ctx, [fc.solutionArchitecture]) ?? undefined;
     } else {
-      ctx.steps.push({ stepName: `Step 19/${TOTAL_STEPS}`, agent: 'Code Implementation', success: true, skipped: true, durationMs: 0 });
+      ctx.steps.push({ stepName: `Step 20/${TOTAL_STEPS}`, agent: 'Code Implementation', success: true, skipped: true, durationMs: 0 });
     }
 
     // ── Coherence validation (standard + deep) ───────────────────────────

@@ -45,6 +45,7 @@ export enum AgentRole {
 
   // ── Implementação de Código ─────────────
   CodeImplementation = 'code-implementation',
+  ImplementationPlan = 'implementation-plan',
 }
 
 /** Message passed between agents. */
@@ -245,6 +246,43 @@ export interface SolutionArchitecture {
   technologyStack: string[];
 }
 
+// ── Implementation Plan ──────────────────────────────────────────────────────
+
+export interface ImplementationPlan {
+  overview: string;
+  currentArchitecture: string;
+  implementationPhases: Array<{
+    phase: string;
+    components: string[];
+    tasks: string[];
+    duration: string;
+    dependencies: string[];
+  }>;
+  cleanCodePractices: Array<{
+    practice: string;
+    description: string;
+    components: string[];
+  }>;
+  testingStrategy: {
+    approach: string;
+    types: string[];
+    tools: string[];
+    coverage: string;
+  };
+  deploymentApproach: {
+    strategy: string;
+    steps: string[];
+    rollback: string[];
+  };
+  riskAssessment: {
+    level: 'low' | 'medium' | 'high';
+    factors: string[];
+    mitigations: string[];
+  };
+  estimatedTimeline: string;
+  successCriteria: string[];
+}
+
 export interface ProposedComponent {
   name: string;
   type: 'service' | 'controller' | 'repository' | 'middleware' | 'utility' | 'model' | 'migration' | 'form';
@@ -326,7 +364,10 @@ export interface FeatureContext {
   // ── Stage 6 — Solution Architecture ─────────────────────
   solutionArchitecture?: SolutionArchitecture;
 
-  // ── Stage 7 — Impact Analysis ───────────────────────────
+  // ── Stage 7 — Implementation Plan ──────────────────────
+  implementationPlan?: ImplementationPlan;
+
+  // ── Stage 8 — Impact Analysis ───────────────────────────
   impactAnalysis?: ImpactAnalysis;
 
   // ── Stage 8 — Estimation ────────────────────────────────

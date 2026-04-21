@@ -8,6 +8,8 @@ const REPOSITORY_ONLY_AGENTS = new Set([
   'Project Discovery',
   'Attachment Reader',
   'Reuse Analyst',
+  'Solution Architect',
+  'Implementation Plan Architect',
   'Impact Analyst',
   'Estimation Agent',
   'Documentation Generator',
