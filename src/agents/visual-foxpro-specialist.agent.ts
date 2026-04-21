@@ -22,71 +22,68 @@ export class VisualFoxProSpecialistAgent extends LanguageSpecialistAgent {
     const bestPractices: string[] = [];
 
     if (repo) {
-      // ── Detect VFP file types and patterns ───────────────
-      const vfpFiles = repo.services
-        .filter((s) => /\.prg$/i.test(s.filePath))
-        .map((s) => s.filePath);
-      const xmlFormFiles = repo.languages
-        .filter((l) => l.language === 'Visual FoxPro')
-        ? repo.services.filter((s) => /\.xml$/i.test(s.filePath))
-        : [];
+      const vfpServiceFiles = repo.services.filter((s) => /\.(prg|vcx|vct)$/i.test(s.filePath));
+      const vfpFormFiles = repo.components?.filter((c) => /\.xml$/i.test(c.filePath)) ?? [];
+      const reusableLibraries = repo.reusableComponents?.filter((rc) => /\.(vcx|vct|prg)$/i.test(rc.filePath) || rc.category === 'shared' || rc.category === 'lib') ?? [];
 
-      const hasPrg = vfpFiles.length > 0 || repo.languages.some((l) => l.language === 'Visual FoxPro');
-      const hasXmlForms = xmlFormFiles.length > 0 ||
-        repo.components?.some((c) => /\.xml$/i.test(c.filePath)) || false;
+      const hasPrg = vfpServiceFiles.length > 0 || repo.languages.some((l) => l.language === 'Visual FoxPro');
+      const hasXmlForms = vfpFormFiles.length > 0 || repo.services.some((s) => /\.xml$/i.test(s.filePath));
+      const hasReusableLibraries = reusableLibraries.length > 0;
 
-      patterns.push('Visual FoxPro 9.0 (sistema legado)');
+      patterns.push('Visual FoxPro 9.0 como base de um sistema legado robusto');
 
       if (hasPrg) {
-        patterns.push('Código-fonte em arquivos .prg (classes, procedures, funções)');
+        patterns.push('Implementação em .prg com DEFINE CLASS, PROCEDURE e FUNCTION');
+        patterns.push('Lógica de negócio encapsulada em módulos VFP e classes definidas no runtime');
       }
 
       if (hasXmlForms) {
         patterns.push('Formulários/telas convertidos de .scx/.sct para .xml');
-        patterns.push('Análises e alterações de UI devem ser feitas nos arquivos .xml convertidos');
+        patterns.push('UI VFP tratada como XML convertido, com code-behind em .prg');
       }
 
-      // ── Conventions for VFP projects ───────────────────
+      if (hasReusableLibraries) {
+        patterns.push('Bibliotecas reutilizáveis detectadas em .vcx/.vct e componentes compartilhados');
+      }
+
+      if (repo.reusableComponents?.length) {
+        patterns.push('Estruturas reutilizáveis analisáveis: helpers, componentes comuns e módulos de domínio');
+      }
+
       conventions.push(
-        'Arquivos .prg: lógica de negócio, classes (DEFINE CLASS), procedures e funções',
-        'Arquivos .xml: formulários/telas convertidos de .scx/.sct — toda análise de UI nestes arquivos',
-        'Arquivos .vcx/.vct: bibliotecas de classes visuais (podem também estar convertidos para .xml)',
-        'Naming: prefixos húngaros (tc=char, tn=numeric, tl=logical, to=object, lo=local object)',
-        'LOCAL para todas as variáveis — evitar PUBLIC e PRIVATE',
+        'Arquivos .prg para regras de negócio, serviços e data access em VFP',
+        'Arquivos .xml para formulários convertidos de .scx/.sct; alterações de UI devem ser feitas no XML e no code-behind .prg',
+        'Arquivos .vcx/.vct como bibliotecas de classes e componentes visuais reutilizados',
+        'Prefixos e convenções de VFP: naming de controles e variáveis, uso explícito de LOCAL/ LPARAMETERS',
+        'Preservar o modelo de dados existente e evitar reescrever camadas críticas sem necessidade',
       );
 
-      // ── Recommendations ────────────────────────────────
       recommendations.push(
-        'Avaliar migração para .NET/C# com estratégia incremental',
-        'Substituir tabelas DBF por SQL Server para concorrência',
-        'Implementar COM Interop para integração com .NET durante migração',
-        'Criar camada de abstração para dados antes de migrar',
-        'Manter formulários convertidos (.xml) como fonte de verdade para alterações de UI',
-        'Usar SQL pass-through (SQLEXEC) em vez de acesso direto a DBF para novos módulos',
-        'Implementar TRY/CATCH em todas as operações críticas',
+        'Reconhecer o sistema como legado robusto e priorizar estabilidade antes de migração',
+        'Identificar classes e bibliotecas reutilizáveis (.vcx, .vct, .prg) para reaproveitamento imediato',
+        'Preservar formulários convertidos (.xml) como fonte de verdade das telas',
+        'Criar uma camada de abstração de dados para separar DBF/SQL de regras de negócio',
+        'Usar SQL pass-through (SQLEXEC) e CursorAdapter para novos acessos a dados',
+        'Atualizar incrementalmente em módulos críticos, mantendo comportamentos existentes',
+        'Documentar dependências do runtime VFP e pontos de integração COM/SQL Server',
       );
 
-      // ── Code smells ────────────────────────────────────
       codeSmells.push(
-        'Código procedural sem separação de responsabilidades',
-        'Uso excessivo de macros (&) que dificulta manutenção',
-        'SCATTER/GATHER sem estrutura tipada',
-        'Variáveis PUBLIC que poluem o namespace global',
-        'Acesso direto a tabelas DBF sem camada de abstração',
-        'Formulários monolíticos sem componentização',
+        'Formulários monolíticos e monolitos de UI sem modularização',
+        'Duplicação de lógica entre formulários e procedimentos',
+        'Uso excessivo de macros (&) e SCATTER/GATHER que dificultam leitura',
+        'Dependência direta de tabelas DBF sem camada de abstração de dados',
+        'Variáveis PUBLIC e global state que tornam o legado frágil',
       );
 
-      // ── Best practices ─────────────────────────────────
       bestPractices.push(
-        'SQLEXEC para acesso client-server (SQL pass-through)',
-        'CursorAdapter para abstração de dados',
-        'TRY/CATCH/FINALLY para tratamento de erros',
-        'DEFINE CLASS com herança para componentização',
-        'Formulários em .xml (convertidos de .scx/.sct) — editar XML para alterações de tela',
-        'Arquivos .prg para lógica de negócio e data access',
-        'Separação BLL (Business Logic Layer) / DAL (Data Access Layer) em .prg',
-        'Migração incremental módulo por módulo',
-        'FoxUnit para testes unitários',
+        'Reutilizar bibliotecas de classes existentes e componentes comuns antes de refatorar',
+        'Manter separação de BLL/DAL em .prg quando possível',
+        'Usar TRY/CATCH/FINALLY para proteger operações críticas de banco e arquivos',
+        'Preservar e documentar fluxos de dados do sistema legado ao introduzir mudanças',
+        'Criar wrappers para acesso a DBF/SQL para proteger código legado durante evolução',
+        'Estruturar formulários convertidos .xml como peças reutilizáveis e manter naming consistente',
+        'Identificar componentes de domínio estabilizados que podem ser reaproveitados em novos módulos',
       );
     }
 
